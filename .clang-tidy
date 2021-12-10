@@ -1,0 +1,4 @@
+Checks:          '*,-fuchsia-*,-modernize-use-trailing-return-type,-readability-magic-numbers,-cppcoreguidelines-avoid-magic-numbers,-google-*,-cppcoreguidelines-pro-bounds-constant-array-index,-llvm*,-readability-else-after-return'
+WarningsAsErrors: '-*'
+HeaderFilterRegex: '.*'
+FormatStyle:     none

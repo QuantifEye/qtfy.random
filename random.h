@@ -104,6 +104,20 @@ class Counter
    */
   static constexpr Counter min() noexcept;
 
+  template<std::unsigned_integral new_word_t>
+  constexpr auto reinterpret()
+  {
+    constexpr auto bytes = sizeof(word_t) * words;
+    static_assert(bytes % sizeof(new_word_t) == 0);
+    static_assert(std::endian::native == std::endian::little, "currently only supported for little endian");
+    if constexpr (std::endian::native == std::endian::little)
+    {
+      return std::bit_cast<Counter<new_word_t, bytes / sizeof(new_word_t)>>(*this);
+    }
+
+    // TODO: for this to be implemented on big endian machines as a bit cast, the words in the array would have to be in
+    // reverse order, that is, most significant word in position 0
+  }
 
 
   using const_iterator = typename array_t::const_iterator;

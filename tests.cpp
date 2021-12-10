@@ -291,19 +291,19 @@ auto test_add_small()
 
 auto test_reinterpret()
 {
-//  constexpr uint32_t two16 = uint32_t{1} << 16U;
-//  constexpr uint16_t w0 = 12;
-//  constexpr uint16_t w1 = 34;
-//  constexpr uint16_t w2 = 45;
-//  constexpr uint16_t w3 = 78;
-//  constexpr uint32_t v0 = w0 + w1 * two16;
-//  constexpr uint32_t v1 = w2 + w3 * two16;
-//
-//  Counter<uint16_t, 4> ctr{w0, w1, w2, w3};
-//  auto r = ctr.reinterpret<uint32_t>();
-//
-//  assert_equal(v0, r[0]);
-//  assert_equal(v1, r[1]);
+  constexpr uint32_t two16 = uint32_t{1} << 16U;
+  constexpr uint16_t w0 = 12;
+  constexpr uint16_t w1 = 34;
+  constexpr uint16_t w2 = 45;
+  constexpr uint16_t w3 = 78;
+  constexpr uint32_t v0 = w0 + w1 * two16;
+  constexpr uint32_t v1 = w2 + w3 * two16;
+
+  Counter<uint16_t, 4> ctr{w0, w1, w2, w3};
+  auto r = ctr.reinterpret<uint32_t>();
+
+  assert_equal(v0, r[0]);
+  assert_equal(v1, r[1]);
 }
 
 int main()

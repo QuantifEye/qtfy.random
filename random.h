@@ -1,7 +1,6 @@
 #include <array>
 #include <bit>
 #include <cinttypes>
-#include <concepts>
 #include <cstring>
 #include <limits>
 #include <type_traits>
@@ -56,28 +55,28 @@ class Counter
 
   // adds an unsigned integer to this.
   // for cases where sizeof(T) <= sizeof(word_t)
-  template <std::unsigned_integral T>
+  template <class T>
   constexpr Counter &add_small(T addend) noexcept;
 
   // adds an unsigned integer to this.
   // for cases where sizeof(T) > sizeof(word_t)
-  template <std::unsigned_integral T>
+  template <class T>
   constexpr Counter &add_large(T addend) noexcept;
 
   // subtracts an unsigned integer from this
   // for cases where sizeof(T) <= sizeof(word_t)
-  template <std::unsigned_integral T>
+  template <class T>
   constexpr Counter &subtract_small(T subtrahend) noexcept;
 
   // subtracts an unsigned integer from this
   // for cases where sizeof(T) > sizeof(word_t)
-  template <std::unsigned_integral T>
+  template <class T>
   constexpr Counter &subtract_large(T subtrahend) noexcept;
 
-  template <std::integral T>
+  template <class T>
   constexpr Counter &add(T addend) noexcept;
 
-  template <std::integral T>
+  template <class T>
   constexpr Counter &subtract(T subtrahend) noexcept;
 
   // rolls the counter forward from the starting index
@@ -104,7 +103,7 @@ class Counter
    */
   static constexpr Counter min() noexcept;
 
-  template<std::unsigned_integral new_word_t>
+  template<class new_word_t>
   constexpr auto reinterpret()
   {
     constexpr auto bytes = sizeof(word_t) * words;
@@ -197,10 +196,10 @@ class Counter
 
   constexpr Counter &operator--() noexcept;
 
-  template <std::integral T>
+  template <class T>
   constexpr Counter &operator+=(T addend) noexcept;
 
-  template <std::integral T>
+  template <class T>
   constexpr Counter &operator-=(T subtrahend) noexcept;
 
   constexpr void swap(Counter &right) noexcept { m_array.swap(right.m_array); }
@@ -224,13 +223,13 @@ static constexpr bool operator!=(Counter<word_t, words> left, Counter<word_t, wo
   return left.m_array != right.m_array;
 }
 
-template <class word_t, size_t words, std::integral TAddend>
+template <class word_t, size_t words, class TAddend>
 static constexpr Counter<word_t, words> operator+(Counter<word_t, words> left, TAddend addend) noexcept
 {
   return left += addend;
 }
 
-template <class word_t, size_t words, std::integral TAddend>
+template <class word_t, size_t words, class TAddend>
 static constexpr Counter<word_t, words> operator-(Counter<word_t, words> left, TAddend subtrahend) noexcept
 {
   return left -= subtrahend;
@@ -266,7 +265,7 @@ constexpr void Counter<word_t, words>::decrement() noexcept
 }
 
 template <class word_t, size_t words>
-template <std::unsigned_integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::add_small(T addend) noexcept
 {
   const word_t old_value = m_array[0];
@@ -280,7 +279,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add_small(T addend) no
 }
 
 template <class word_t, size_t words>
-template <std::unsigned_integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::add_large(T addend) noexcept
 {
   // TODO: Should this be a for loop? Will this unroll just as well as a for loop with the "index" being outside the
@@ -302,7 +301,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add_large(T addend) no
 }
 
 template <class word_t, size_t words>
-template <std::unsigned_integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_small(T subtrahend) noexcept
 {
   const word_t old_value = m_array[0];
@@ -316,7 +315,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_small(T subtr
 }
 
 template <class word_t, size_t words>
-template <std::unsigned_integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_large(T subtrahend) noexcept
 {
   // TODO: Should this be a for loop?
@@ -337,7 +336,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_large(T subtr
 }
 
 template <class word_t, size_t words>
-template <std::integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::add(T addend) noexcept
 {
   static_assert(std::is_integral_v<T>);
@@ -378,7 +377,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add(T addend) noexcept
 }
 
 template <class word_t, size_t words>
-template <std::integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::subtract(T subtrahend) noexcept
 {
   static_assert(std::is_integral_v<T>);
@@ -433,14 +432,14 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::operator--() noexcept
 }
 
 template <class word_t, size_t words>
-template <std::integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::operator+=(T addend) noexcept
 {
   return add<std::remove_cvref_t<T>>(addend);
 }
 
 template <class word_t, size_t words>
-template <std::integral T>
+template <class T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::operator-=(T subtrahend) noexcept
 {
   return subtract<std::remove_cvref_t<T>>(subtrahend);
@@ -861,7 +860,7 @@ class CounterBasedGenerator
 
   constexpr CounterBasedGenerator() noexcept : CounterBasedGenerator(key_t{}, counter_t{}) {}
 
-  template <std::unsigned_integral T>
+  template <class T>
   constexpr void discard(T steps) noexcept
   {
     auto chunks = steps / buffer_size;

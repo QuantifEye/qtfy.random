@@ -104,6 +104,8 @@ class Counter
    */
   static constexpr Counter min() noexcept;
 
+
+
   using const_iterator = typename array_t::const_iterator;
   using const_pointer = typename array_t::const_pointer;
   using const_reference = typename array_t::const_reference;
@@ -324,7 +326,6 @@ template <class word_t, size_t words>
 template <std::integral T>
 constexpr Counter<word_t, words> &Counter<word_t, words>::add(T addend) noexcept
 {
-  constexpr auto x = std::make_unsigned<int>;
   static_assert(std::is_integral_v<T>);
   using unsigned_t = std::make_unsigned_t<T>;
   if constexpr (std::is_signed_v<T>)

@@ -56,13 +56,11 @@ class threefry_trait;
 template <class word_t, size_t words>
 class counter
 {
- public:
-  using array_t = std::array<word_t, words>;
-  // TODO: most (maybe all) use cases for this class will only have a few words.
-  // TODO: thus it is important to make sure that loops unroll for performance reasons
-
   static_assert(std::is_integral_v<word_t> && std::is_unsigned_v<word_t>);
   static_assert(words != 0U);
+
+ public:
+  using array_t = std::array<word_t, words>;
 
  private:
   template <class T>
@@ -92,6 +90,18 @@ class counter
   constexpr void decrement() noexcept;
 
  public:
+  using const_iterator = typename array_t::const_iterator;
+  using const_pointer = typename array_t::const_pointer;
+  using const_reference = typename array_t::const_reference;
+  using const_reverse_iterator = typename array_t::const_reverse_iterator;
+  using difference_type = typename array_t::difference_type;
+  using iterator = typename array_t::iterator;
+  using pointer = typename array_t::pointer;
+  using reference = typename array_t::reference;
+  using reverse_iterator = typename array_t::reverse_iterator;
+  using size_type = typename array_t::size_type;
+  using value_type = typename array_t::value_type;
+
   // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
   array_t m_array{};
 
@@ -105,17 +115,15 @@ class counter
    */
   static constexpr counter min() noexcept;
 
-  using const_iterator = typename array_t::const_iterator;
-  using const_pointer = typename array_t::const_pointer;
-  using const_reference = typename array_t::const_reference;
-  using const_reverse_iterator = typename array_t::const_reverse_iterator;
-  using difference_type = typename array_t::difference_type;
-  using iterator = typename array_t::iterator;
-  using pointer = typename array_t::pointer;
-  using reference = typename array_t::reference;
-  using reverse_iterator = typename array_t::reverse_iterator;
-  using size_type = typename array_t::size_type;
-  using value_type = typename array_t::value_type;
+  constexpr counter &operator++() noexcept;
+
+  constexpr counter &operator--() noexcept;
+
+  template <class T>
+  constexpr counter &operator+=(T addend) noexcept;
+
+  template <class T>
+  constexpr counter &operator-=(T subtrahend) noexcept;
 
   constexpr void fill(word_t value) noexcept
   {
@@ -178,18 +186,38 @@ class counter
 
   constexpr const_reference back() const noexcept { return m_array.back(); }
 
-  constexpr counter &operator++() noexcept;
-
-  constexpr counter &operator--() noexcept;
-
-  template <class T>
-  constexpr counter &operator+=(T addend) noexcept;
-
-  template <class T>
-  constexpr counter &operator-=(T subtrahend) noexcept;
-
   constexpr void swap(counter &right) noexcept { m_array.swap(right.m_array); }
 };
+
+template <class word_t, size_t words>
+constexpr counter<word_t, words> counter<word_t, words>::max() noexcept
+{
+  counter<word_t, words> result{};
+  result.fill(std::numeric_limits<word_t>::max());
+  return result;
+}
+
+template <class word_t, size_t words>
+constexpr counter<word_t, words> counter<word_t, words>::min() noexcept
+{
+  counter<word_t, words> result{};
+  result.fill(std::numeric_limits<word_t>::min());
+  return result;
+}
+
+template <class word_t, size_t words>
+constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
+{
+  increment<0>();
+  return *this;
+}
+
+template <class word_t, size_t words>
+constexpr counter<word_t, words> &counter<word_t, words>::operator--() noexcept
+{
+  decrement<0>();
+  return *this;
+}
 
 template <class word_t, size_t words>
 constexpr void swap(counter<word_t, words> &left, counter<word_t, words> &right) noexcept
@@ -222,15 +250,75 @@ static constexpr counter<word_t, words> operator-(counter<word_t, words> left, T
 }
 
 template <class word_t, size_t words>
+template <class T>
+constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) noexcept
+{
+  return add<std::remove_cvref_t<T>>(addend);
+}
+
+template <class word_t, size_t words>
+template <class T>
+constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahend) noexcept
+{
+  return subtract<std::remove_cvref_t<T>>(subtrahend);
+}
+
+
+template <class new_word_t, class old_word_t, size_t old_word_count>
+auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
+{
+  static_assert(std::is_unsigned_v<new_word_t> && std::is_unsigned_v<old_word_t>);
+
+  constexpr size_t old_word_size = sizeof(old_word_t);
+  constexpr size_t new_word_size = sizeof(new_word_t);
+  constexpr size_t new_word_count = old_word_size * old_word_count / new_word_size;
+  constexpr size_t new_words_per_old_word = new_word_count / old_word_count;
+  constexpr size_t old_words_per_new_word = old_word_count / new_word_count;
+  constexpr size_t shift =
+      new_word_size < old_word_size ? std::numeric_limits<new_word_t>::digits : std::numeric_limits<old_word_t>::digits;
+
+  static_assert(old_word_size * old_word_count % new_word_size == 0);
+
+  using return_type = counter<new_word_t, new_word_count>;
+
+  if constexpr (std::endian::native == std::endian::little)
+  {
+    return std::bit_cast<return_type>(old_words);
+  }
+  else
+  {
+    return_type new_words{};
+    if constexpr (new_word_size < old_word_size)
+    {
+      for (size_t i{}; i < old_word_count; ++i)
+      {
+        for (size_t j{}; j < new_words_per_old_word; ++j)
+        {
+          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j + 1));
+        }
+      }
+    }
+    if constexpr (new_word_size > old_word_size)
+    {
+      for (size_t i{}; i < new_word_count; ++i)
+      {
+        for (size_t j{}; j < old_words_per_new_word; ++j)
+        {
+          new_words[i] += (static_cast<new_word_t>(old_words[i * new_word_count + j]) << (shift * j));
+        }
+      }
+    }
+    return new_words;
+  }
+}
+
+template <class word_t, size_t words>
 template <size_t start_index>
 constexpr void counter<word_t, words>::increment() noexcept
 {
   static_assert(start_index < words);
   static_assert(words != 0);
 
-  // TODO: This is an attempt to be terse and minimal, should this be made simpler?
-  // TODO: Should this be a for loop?
-  // TODO: Will this unroll just as well as a for loop with the "i" being outside the loop?
   for (size_t i{start_index}; ++m_array[i] == std::numeric_limits<word_t>::min() && ++i != words;)
   {
   }
@@ -240,11 +328,9 @@ template <class word_t, size_t words>
 template <size_t start_index>
 constexpr void counter<word_t, words>::decrement() noexcept
 {
-  // TODO: This is an attempt to be terse and minimal, should this be made simpler?
-  // TODO: Should this be a for loop?
-  // TODO: Will this unroll just as well as a for loop with the "i" being outside the loop?
   static_assert(start_index < words);
   static_assert(words != 0);
+
   for (size_t i{start_index}; --m_array[i] == std::numeric_limits<word_t>::max() && ++i != words;)
   {
   };
@@ -268,8 +354,6 @@ template <class word_t, size_t words>
 template <class T>
 constexpr counter<word_t, words> &counter<word_t, words>::add_large(T addend) noexcept
 {
-  // TODO: Should this be a for loop? Will this unroll just as well as a for loop with the "index" being outside the
-  // loop?
   size_t index{};
   do
   {
@@ -400,98 +484,6 @@ constexpr counter<word_t, words> &counter<word_t, words>::subtract(T subtrahend)
     {
       return subtract_large(subtrahend);
     }
-  }
-}
-
-template <class word_t, size_t words>
-constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
-{
-  increment<0>();
-  return *this;
-}
-
-template <class word_t, size_t words>
-constexpr counter<word_t, words> &counter<word_t, words>::operator--() noexcept
-{
-  decrement<0>();
-  return *this;
-}
-
-template <class word_t, size_t words>
-template <class T>
-constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) noexcept
-{
-  return add<std::remove_cvref_t<T>>(addend);
-}
-
-template <class word_t, size_t words>
-template <class T>
-constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahend) noexcept
-{
-  return subtract<std::remove_cvref_t<T>>(subtrahend);
-}
-
-template <class word_t, size_t words>
-constexpr counter<word_t, words> counter<word_t, words>::max() noexcept
-{
-  counter<word_t, words> result{};
-  result.fill(std::numeric_limits<word_t>::max());
-  return result;
-}
-
-template <class word_t, size_t words>
-constexpr counter<word_t, words> counter<word_t, words>::min() noexcept
-{
-  counter<word_t, words> result{};
-  result.fill(std::numeric_limits<word_t>::min());
-  return result;
-}
-
-template <class new_word_t, class old_word_t, size_t old_word_count>
-static auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
-{
-  static_assert(std::is_unsigned_v<new_word_t> && std::is_unsigned_v<old_word_t>);
-
-  constexpr size_t old_word_size = sizeof(old_word_t);
-  constexpr size_t new_word_size = sizeof(new_word_t);
-  constexpr size_t new_word_count = old_word_size * old_word_count / new_word_size;
-  constexpr size_t new_words_per_old_word = new_word_count / old_word_count;
-  constexpr size_t old_words_per_new_word = old_word_count / new_word_count;
-  constexpr size_t shift =
-      new_word_size < old_word_size ? std::numeric_limits<new_word_t>::digits : std::numeric_limits<old_word_t>::digits;
-
-  static_assert(old_word_size * old_word_count % new_word_size == 0);
-
-  using return_type = counter<new_word_t, new_word_count>;
-
-  if constexpr (std::endian::native == std::endian::little)
-  {
-    return std::bit_cast<return_type>(old_words);
-  }
-  else
-  {
-    return_type new_words{};
-    if constexpr (new_word_size < old_word_size)
-    {
-      for (size_t i{}; i < old_word_count; ++i)
-      {
-        for (size_t j{}; j < new_words_per_old_word; ++j)
-        {
-          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j + 1));
-        }
-      }
-    }
-    if constexpr (new_word_size > old_word_size)
-    {
-      for (size_t i{}; i < new_word_count; ++i)
-      {
-        for (size_t j{}; j < old_words_per_new_word; ++j)
-        {
-          new_words[i] += (static_cast<new_word_t>(old_words[i * new_word_count + j]) << (shift * j));
-        }
-      }
-    }
-    return new_words;
   }
 }
 
@@ -861,8 +853,9 @@ class counter_based_engine
   counter_type m_counter{};
   internal_key_type m_key{};
 
- public:
   static constexpr internal_key_type set_key(key_type key) noexcept { return Trait::set_key(key); }
+
+ public:
 
   constexpr counter_based_engine(key_type key, counter_type counter) noexcept
       : m_buffer{}, m_index{}, m_counter{counter}, m_key{set_key(key)}
@@ -907,9 +900,9 @@ class counter_based_engine
 };
 
 template <class word_t, unsigned words, unsigned rounds>
-using ThreeFryGenerator = counter_based_engine<threefry_trait<word_t, words, rounds>>;
+using threefry_engine = counter_based_engine<threefry_trait<word_t, words, rounds>>;
 
 template <class word_t, unsigned words, unsigned rounds>
-using PhiloxGenerator = counter_based_engine<philox_trait<word_t, words, rounds>>;
+using philox_engine = counter_based_engine<philox_trait<word_t, words, rounds>>;
 
 }  // namespace qtfy::random

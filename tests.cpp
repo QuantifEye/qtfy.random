@@ -21,39 +21,39 @@ static auto test(auto ctr, auto key, auto expected)
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_threefry(Counter<TWord, words> ctr, Counter<TWord, words> key, Counter<TWord, words> expected)
+auto test_threefry(counter<TWord, words> ctr, counter<TWord, words> key, counter<TWord, words> expected)
 {
-  test<ThreeFry<TWord, words, rounds>>(ctr, key, expected);
+  test<threefry_trait<TWord, words, rounds>>(ctr, key, expected);
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_threefry_min(Counter<TWord, words> expected)
+auto test_threefry_min(counter<TWord, words> expected)
 {
-  test<ThreeFry<TWord, words, rounds>>(Counter<TWord, words>::min(), Counter<TWord, words>::min(), expected);
+  test<threefry_trait<TWord, words, rounds>>(counter<TWord, words>::min(), counter<TWord, words>::min(), expected);
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_threefry_max(Counter<TWord, words> expected)
+auto test_threefry_max(counter<TWord, words> expected)
 {
-  test<ThreeFry<TWord, words, rounds>>(Counter<TWord, words>::max(), Counter<TWord, words>::max(), expected);
+  test<threefry_trait<TWord, words, rounds>>(counter<TWord, words>::max(), counter<TWord, words>::max(), expected);
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_philox(Counter<TWord, words> ctr, Counter<TWord, words / 2U> key, Counter<TWord, words> expected)
+auto test_philox(counter<TWord, words> ctr, counter<TWord, words / 2U> key, counter<TWord, words> expected)
 {
-  test<Philox<TWord, words, rounds>>(ctr, key, expected);
+  test<philox_trait<TWord, words, rounds>>(ctr, key, expected);
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_philox_min(Counter<TWord, words> expected)
+auto test_philox_min(counter<TWord, words> expected)
 {
-  test<Philox<TWord, words, rounds>>(Counter<TWord, words>::min(), Counter<TWord, words / 2U>::min(), expected);
+  test<philox_trait<TWord, words, rounds>>(counter<TWord, words>::min(), counter<TWord, words / 2U>::min(), expected);
 }
 
 template <class TWord, unsigned words, unsigned rounds>
-auto test_philox_max(Counter<TWord, words> expected)
+auto test_philox_max(counter<TWord, words> expected)
 {
-  test<Philox<TWord, words, rounds>>(Counter<TWord, words>::max(), Counter<TWord, words / 2U>::max(), expected);
+  test<philox_trait<TWord, words, rounds>>(counter<TWord, words>::max(), counter<TWord, words / 2U>::max(), expected);
 }
 
 auto TestThreeFry64x4()
@@ -77,8 +77,8 @@ auto TestThreeFry64x4()
 
 auto TestThreeFry32x4()
 {
-  Counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
-  Counter<uint32_t, 4> key{0xa4093822, 0x299f31d0, 0x082efa98, 0xec4e6c89};
+  counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
+  counter<uint32_t, 4> key{0xa4093822, 0x299f31d0, 0x082efa98, 0xec4e6c89};
   test_threefry<uint32_t, 4, 13>(ctr, key, {0x4aa71d8f, 0x734738c2, 0x431fc6a8, 0xae6debf1});
   test_threefry_min<uint32_t, 4, 13>({0x531c7e4f, 0x39491ee5, 0x2c855a92, 0x3d6abf9a});
   test_threefry_max<uint32_t, 4, 13>({0xc4189358, 0x1c9cc83a, 0xd5881c67, 0x6a0a89e0});
@@ -92,8 +92,8 @@ auto TestThreeFry32x4()
 
 auto TestThreeFry64x2()
 {
-  Counter<uint64_t, 2> ctr{0x243f6a8885a308d3, 0x13198a2e03707344};
-  Counter<uint64_t, 2> key{0xa4093822299f31d0, 0x082efa98ec4e6c89};
+  counter<uint64_t, 2> ctr{0x243f6a8885a308d3, 0x13198a2e03707344};
+  counter<uint64_t, 2> key{0xa4093822299f31d0, 0x082efa98ec4e6c89};
   test_threefry<uint64_t, 2, 13>(ctr, key, {0xc3aac71561042993, 0x3fe7ae8801aff316});
   test_threefry_min<uint64_t, 2, 13>({0xf167b032c3b480bd, 0xe91f9fee4b7a6fb5});
   test_threefry_max<uint64_t, 2, 13>({0xccdec5c917a874b1, 0x4df53abca26ceb01});
@@ -107,8 +107,8 @@ auto TestThreeFry64x2()
 
 auto TestThreeFry32x2()
 {
-  Counter<uint32_t, 2> ctr{0x243f6a88, 0x85a308d3};
-  Counter<uint32_t, 2> key{0x13198a2e, 0x03707344};
+  counter<uint32_t, 2> ctr{0x243f6a88, 0x85a308d3};
+  counter<uint32_t, 2> key{0x13198a2e, 0x03707344};
   test_threefry<uint32_t, 2, 13>(ctr, key, {0xba3e4725, 0xf27d669e});
   test_threefry_min<uint32_t, 2, 13>({0x9d1c5ec6, 0x8bd50731});
   test_threefry_max<uint32_t, 2, 13>({0xfd36d048, 0x2d17272c});
@@ -122,8 +122,8 @@ auto TestThreeFry32x2()
 
 auto TestPhilox64x4()
 {
-  Counter<uint64_t, 4> ctr{0x243f6a8885a308d3, 0x13198a2e03707344, 0xa4093822299f31d0, 0x082efa98ec4e6c89};
-  Counter<uint64_t, 2> key{0x452821e638d01377, 0xbe5466cf34e90c6c};
+  counter<uint64_t, 4> ctr{0x243f6a8885a308d3, 0x13198a2e03707344, 0xa4093822299f31d0, 0x082efa98ec4e6c89};
+  counter<uint64_t, 2> key{0x452821e638d01377, 0xbe5466cf34e90c6c};
   test_philox<uint64_t, 4, 7>(ctr, key,
                               {0x513a366704edf755, 0xf05d9924c07044d3, 0xbef2cb9cbea74c6c, 0x8db948de4caa1f8a});
   test_philox_min<uint64_t, 4, 7>({0x5dc8ee6268ec62cd, 0x139bc570b6c125a0, 0x84d6deb4fb65f49e, 0xaff7583376d378c2});
@@ -136,8 +136,8 @@ auto TestPhilox64x4()
 
 auto TestPhilox32x4()
 {
-  Counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
-  Counter<uint32_t, 2> key{0xa4093822, 0x299f31d0};
+  counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
+  counter<uint32_t, 2> key{0xa4093822, 0x299f31d0};
   test_philox<uint32_t, 4, 7>(ctr, key, {0x4dfccaba, 0x190a87f0, 0xc47362ba, 0xb6b5242a});
   test_philox_min<uint32_t, 4, 7>({0x5f6fb709, 0x0d893f64, 0x4f121f81, 0x4f730a48});
   test_philox_max<uint32_t, 4, 7>({0x5207ddc2, 0x45165e59, 0x4d8ee751, 0x8c52f662});
@@ -148,8 +148,8 @@ auto TestPhilox32x4()
 
 auto TestPhilox64x2()
 {
-  Counter<uint64_t, 2> ctr{0x243f6a8885a308d3, 0x13198a2e03707344};
-  Counter<uint64_t, 1> key{0xa4093822299f31d0};
+  counter<uint64_t, 2> ctr{0x243f6a8885a308d3, 0x13198a2e03707344};
+  counter<uint64_t, 1> key{0xa4093822299f31d0};
   test_philox<uint64_t, 2, 7>(ctr, key, {0x98ed1534392bf372, 0x67528b1568882fd5});
   test_philox_min<uint64_t, 2, 7>({0xb41da69fbfefc666, 0x511e9ce1a5534056});
   test_philox_max<uint64_t, 2, 7>({0xa4696cc04462015d, 0x724782dae17169e9});
@@ -160,8 +160,8 @@ auto TestPhilox64x2()
 
 auto TestPhilox32x2()
 {
-  Counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
-  Counter<uint32_t, 2> key{0xa4093822, 0x299f31d0};
+  counter<uint32_t, 4> ctr{0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344};
+  counter<uint32_t, 2> key{0xa4093822, 0x299f31d0};
   test_philox<uint32_t, 4, 7>(ctr, key, {0x4dfccaba, 0x190a87f0, 0xc47362ba, 0xb6b5242a});
   test_philox_min<uint32_t, 4, 7>({0x5f6fb709, 0x0d893f64, 0x4f121f81, 0x4f730a48});
   test_philox_max<uint32_t, 4, 7>({0x5207ddc2, 0x45165e59, 0x4d8ee751, 0x8c52f662});
@@ -175,14 +175,14 @@ struct MockTrait
   constexpr static size_t counter_size = 4;
   constexpr static size_t key_size = 4;
   constexpr static size_t internal_key_size = 4;
-  using result_type = uint32_t;
-  using counter_t = Counter<uint32_t, counter_size>;
-  using key_t = Counter<uint32_t, key_size>;
-  using internal_key_t = Counter<uint32_t, internal_key_size>;
+  using word_type = uint32_t;
+  using counter_type = counter<uint32_t, counter_size>;
+  using key_type = counter<uint32_t, key_size>;
+  using internal_key_type = counter<uint32_t, internal_key_size>;
 
-  static internal_key_t set_key(key_t k) noexcept { return k; }
+  static internal_key_type set_key(key_type k) noexcept { return k; }
 
-  static counter_t bijection(counter_t ctr, [[maybe_unused]] internal_key_t key) noexcept
+  static counter_type bijection(counter_type ctr, [[maybe_unused]] internal_key_type key) noexcept
   {
     auto c0 = ctr[0] * 4;
     return {c0, c0 + 1U, c0 + 2U, c0 + 3U};
@@ -191,7 +191,7 @@ struct MockTrait
 
 auto test_mock_trait()
 {
-  using ctr_t = Counter<uint32_t, 4>;
+  using ctr_t = counter<uint32_t, 4>;
   {
     ctr_t expected = {0U, 1U, 2U, 3U};
     ctr_t actual = MockTrait::bijection({0U, 0U, 0U, 0U}, {});
@@ -211,8 +211,8 @@ auto test_mock_trait()
 
 auto test_call_operator()
 {
-  using T = MockTrait::result_type;
-  CounterBasedGenerator<MockTrait> gen{};
+  using T = MockTrait::word_type;
+  counter_based_engine<MockTrait> gen{};
   for (T i{}; i < T{1000}; ++i)
   {
     assert_equal(gen(), i);
@@ -222,7 +222,7 @@ auto test_call_operator()
 auto test_discard(std::vector<uint32_t> &&expected, unsigned steps)
 {
   std::vector<uint32_t> actual{};
-  CounterBasedGenerator<MockTrait> gen{};
+  counter_based_engine<MockTrait> gen{};
   while (actual.size() < expected.size())
   {
     actual.push_back(gen());
@@ -247,8 +247,8 @@ auto test_increment_decrement(auto input, auto expected_incremented)
 
 auto test_increment_decrement()
 {
-  using ctr1 = Counter<uint32_t, 1>;
-  using ctr2 = Counter<uint32_t, 2>;
+  using ctr1 = counter<uint32_t, 1>;
+  using ctr2 = counter<uint32_t, 2>;
   test_increment_decrement(ctr1{1U}, ctr1{2U});
   test_increment_decrement(ctr1{0U}, ctr1{1U});
   test_increment_decrement(ctr1{UINT32_MAX}, ctr1{0U});
@@ -261,8 +261,8 @@ auto test_increment_decrement()
 
 auto test_add_small()
 {
-  using ctr2 = Counter<uint32_t, 2>;
-  using ctr3 = Counter<uint32_t, 3>;
+  using ctr2 = counter<uint32_t, 2>;
+  using ctr3 = counter<uint32_t, 3>;
   {
     ctr2 input{UINT32_MAX, 1};
     ctr2 expected{1, 2};
@@ -289,21 +289,16 @@ auto test_add_small()
   }
 }
 
-auto test_reinterpret()
+auto test_reinterpret_array()
 {
-  constexpr uint32_t two16 = uint32_t{1} << 16U;
-  constexpr uint16_t w0 = 12;
-  constexpr uint16_t w1 = 34;
-  constexpr uint16_t w2 = 45;
-  constexpr uint16_t w3 = 78;
-  constexpr uint32_t v0 = w0 + w1 * two16;
-  constexpr uint32_t v1 = w2 + w3 * two16;
+  constexpr qtfy::random::counter<uint16_t, 4> arr16{0x1234, 0x5678, 0x9012, 0x3456};
+  constexpr qtfy::random::counter<uint32_t, 2> arr32{0x56781234, 0x34569012};
 
-  Counter<uint16_t, 4> ctr{w0, w1, w2, w3};
-  auto r = ctr.reinterpret<uint32_t>();
+  auto expected16 = qtfy::random::reinterpret<uint16_t>(arr32);
+  auto expected32 = qtfy::random::reinterpret<uint32_t>(arr16);
 
-  assert_equal(v0, r[0]);
-  assert_equal(v1, r[1]);
+  assert_equal(expected16, arr16);
+  assert_equal(expected32, arr32);
 }
 
 int main()
@@ -321,7 +316,7 @@ int main()
   test_discard();
   test_increment_decrement();
 
-  test_reinterpret();
+  test_reinterpret_array();
   test_add_small();
   std::cout << "success\n";
   return EXIT_SUCCESS;

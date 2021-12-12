@@ -23,6 +23,15 @@ static constexpr auto bit_cast(TFrom value) noexcept
 
 namespace qtfy::random {
 
+template <class word_t, size_t words>
+class counter;
+
+template <class word_t, unsigned words, unsigned rounds>
+class philox_trait;
+
+template <class word_t, unsigned words, unsigned rounds>
+class threefry_trait;
+
 /**
  * A class that represents a multi word unsigned integer where each word is an unsigned integral.
  * The class shares most of the interface that std::array provides in order to access indivisual elements.
@@ -38,46 +47,41 @@ namespace qtfy::random {
  *
  * @note
  * The value of the counter can be thought of
- * as Counter<uint32_t, 2>{7, 8} == 7 + 8 >> 32
- * or Counter<uint32_t, 2>{7, 8} == 7 + 8 * pow(2, 32)
+ * as counter<uint32_t, 2>{7, 8} == 7 + 8 >> 32
+ * or counter<uint32_t, 2>{7, 8} == 7 + 8 * pow(2, 32)
  *
  * Note that the least significant word is stored in the smallest address location.
  * This implies that {1, 2} + 1 = {2, 2}
  */
 template <class word_t, size_t words>
-class Counter
+class counter
 {
+ public:
+  using array_t = std::array<word_t, words>;
   // TODO: most (maybe all) use cases for this class will only have a few words.
   // TODO: thus it is important to make sure that loops unroll for performance reasons
 
   static_assert(std::is_integral_v<word_t> && std::is_unsigned_v<word_t>);
   static_assert(words != 0U);
 
-  // adds an unsigned integer to this.
-  // for cases where sizeof(T) <= sizeof(word_t)
+ private:
   template <class T>
-  constexpr Counter &add_small(T addend) noexcept;
-
-  // adds an unsigned integer to this.
-  // for cases where sizeof(T) > sizeof(word_t)
-  template <class T>
-  constexpr Counter &add_large(T addend) noexcept;
-
-  // subtracts an unsigned integer from this
-  // for cases where sizeof(T) <= sizeof(word_t)
-  template <class T>
-  constexpr Counter &subtract_small(T subtrahend) noexcept;
-
-  // subtracts an unsigned integer from this
-  // for cases where sizeof(T) > sizeof(word_t)
-  template <class T>
-  constexpr Counter &subtract_large(T subtrahend) noexcept;
+  constexpr counter &add_small(T addend) noexcept;
 
   template <class T>
-  constexpr Counter &add(T addend) noexcept;
+  constexpr counter &add_large(T addend) noexcept;
 
   template <class T>
-  constexpr Counter &subtract(T subtrahend) noexcept;
+  constexpr counter &subtract_small(T subtrahend) noexcept;
+
+  template <class T>
+  constexpr counter &subtract_large(T subtrahend) noexcept;
+
+  template <class T>
+  constexpr counter &add(T addend) noexcept;
+
+  template <class T>
+  constexpr counter &subtract(T subtrahend) noexcept;
 
   // rolls the counter forward from the starting index
   template <size_t start_index>
@@ -88,36 +92,18 @@ class Counter
   constexpr void decrement() noexcept;
 
  public:
-  using array_t = std::array<word_t, words>;
-
   // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
   array_t m_array{};
 
   /**
    * The greatest possible value the the type can have.
    */
-  static constexpr Counter max() noexcept;
+  static constexpr counter max() noexcept;
 
   /**
    * The smallest possible value the the type can have.
    */
-  static constexpr Counter min() noexcept;
-
-  template<class new_word_t>
-  constexpr auto reinterpret()
-  {
-    constexpr auto bytes = sizeof(word_t) * words;
-    static_assert(bytes % sizeof(new_word_t) == 0);
-    static_assert(std::endian::native == std::endian::little, "currently only supported for little endian");
-    if constexpr (std::endian::native == std::endian::little)
-    {
-      return std::bit_cast<Counter<new_word_t, bytes / sizeof(new_word_t)>>(*this);
-    }
-
-    // TODO: for this to be implemented on big endian machines as a bit cast, the words in the array would have to be in
-    // reverse order, that is, most significant word in position 0
-  }
-
+  static constexpr counter min() noexcept;
 
   using const_iterator = typename array_t::const_iterator;
   using const_pointer = typename array_t::const_pointer;
@@ -192,52 +178,52 @@ class Counter
 
   constexpr const_reference back() const noexcept { return m_array.back(); }
 
-  constexpr Counter &operator++() noexcept;
+  constexpr counter &operator++() noexcept;
 
-  constexpr Counter &operator--() noexcept;
-
-  template <class T>
-  constexpr Counter &operator+=(T addend) noexcept;
+  constexpr counter &operator--() noexcept;
 
   template <class T>
-  constexpr Counter &operator-=(T subtrahend) noexcept;
+  constexpr counter &operator+=(T addend) noexcept;
 
-  constexpr void swap(Counter &right) noexcept { m_array.swap(right.m_array); }
+  template <class T>
+  constexpr counter &operator-=(T subtrahend) noexcept;
+
+  constexpr void swap(counter &right) noexcept { m_array.swap(right.m_array); }
 };
 
 template <class word_t, size_t words>
-constexpr void swap(Counter<word_t, words> &left, Counter<word_t, words> &right) noexcept
+constexpr void swap(counter<word_t, words> &left, counter<word_t, words> &right) noexcept
 {
   left.swap(right);
 }
 
 template <class word_t, size_t words>
-static constexpr bool operator==(Counter<word_t, words> left, Counter<word_t, words> right) noexcept
+static constexpr bool operator==(counter<word_t, words> left, counter<word_t, words> right) noexcept
 {
   return left.m_array == right.m_array;
 }
 
 template <class word_t, size_t words>
-static constexpr bool operator!=(Counter<word_t, words> left, Counter<word_t, words> right) noexcept
+static constexpr bool operator!=(counter<word_t, words> left, counter<word_t, words> right) noexcept
 {
   return left.m_array != right.m_array;
 }
 
 template <class word_t, size_t words, class TAddend>
-static constexpr Counter<word_t, words> operator+(Counter<word_t, words> left, TAddend addend) noexcept
+static constexpr counter<word_t, words> operator+(counter<word_t, words> left, TAddend addend) noexcept
 {
   return left += addend;
 }
 
 template <class word_t, size_t words, class TAddend>
-static constexpr Counter<word_t, words> operator-(Counter<word_t, words> left, TAddend subtrahend) noexcept
+static constexpr counter<word_t, words> operator-(counter<word_t, words> left, TAddend subtrahend) noexcept
 {
   return left -= subtrahend;
 }
 
 template <class word_t, size_t words>
 template <size_t start_index>
-constexpr void Counter<word_t, words>::increment() noexcept
+constexpr void counter<word_t, words>::increment() noexcept
 {
   static_assert(start_index < words);
   static_assert(words != 0);
@@ -252,7 +238,7 @@ constexpr void Counter<word_t, words>::increment() noexcept
 
 template <class word_t, size_t words>
 template <size_t start_index>
-constexpr void Counter<word_t, words>::decrement() noexcept
+constexpr void counter<word_t, words>::decrement() noexcept
 {
   // TODO: This is an attempt to be terse and minimal, should this be made simpler?
   // TODO: Should this be a for loop?
@@ -266,7 +252,7 @@ constexpr void Counter<word_t, words>::decrement() noexcept
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::add_small(T addend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::add_small(T addend) noexcept
 {
   const word_t old_value = m_array[0];
   const word_t new_value = old_value + static_cast<word_t>(addend);
@@ -280,7 +266,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add_small(T addend) no
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::add_large(T addend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::add_large(T addend) noexcept
 {
   // TODO: Should this be a for loop? Will this unroll just as well as a for loop with the "index" being outside the
   // loop?
@@ -302,7 +288,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add_large(T addend) no
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_small(T subtrahend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::subtract_small(T subtrahend) noexcept
 {
   const word_t old_value = m_array[0];
   const word_t new_value = old_value - static_cast<word_t>(subtrahend);
@@ -316,7 +302,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_small(T subtr
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_large(T subtrahend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::subtract_large(T subtrahend) noexcept
 {
   // TODO: Should this be a for loop?
   // TODO: Will this unroll just as well as a for loop with the "index" being outside the loop?
@@ -337,7 +323,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::subtract_large(T subtr
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::add(T addend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::add(T addend) noexcept
 {
   static_assert(std::is_integral_v<T>);
   using unsigned_t = std::make_unsigned_t<T>;
@@ -378,7 +364,7 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::add(T addend) noexcept
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::subtract(T subtrahend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::subtract(T subtrahend) noexcept
 {
   static_assert(std::is_integral_v<T>);
   using unsigned_t = std::make_unsigned_t<T>;
@@ -418,14 +404,14 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::subtract(T subtrahend)
 }
 
 template <class word_t, size_t words>
-constexpr Counter<word_t, words> &Counter<word_t, words>::operator++() noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
 {
   increment<0>();
   return *this;
 }
 
 template <class word_t, size_t words>
-constexpr Counter<word_t, words> &Counter<word_t, words>::operator--() noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator--() noexcept
 {
   decrement<0>();
   return *this;
@@ -433,52 +419,100 @@ constexpr Counter<word_t, words> &Counter<word_t, words>::operator--() noexcept
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::operator+=(T addend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) noexcept
 {
   return add<std::remove_cvref_t<T>>(addend);
 }
 
 template <class word_t, size_t words>
 template <class T>
-constexpr Counter<word_t, words> &Counter<word_t, words>::operator-=(T subtrahend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahend) noexcept
 {
   return subtract<std::remove_cvref_t<T>>(subtrahend);
 }
 
 template <class word_t, size_t words>
-constexpr Counter<word_t, words> Counter<word_t, words>::max() noexcept
+constexpr counter<word_t, words> counter<word_t, words>::max() noexcept
 {
-  Counter<word_t, words> result{};
+  counter<word_t, words> result{};
   result.fill(std::numeric_limits<word_t>::max());
   return result;
 }
 
 template <class word_t, size_t words>
-constexpr Counter<word_t, words> Counter<word_t, words>::min() noexcept
+constexpr counter<word_t, words> counter<word_t, words>::min() noexcept
 {
-  Counter<word_t, words> result{};
+  counter<word_t, words> result{};
   result.fill(std::numeric_limits<word_t>::min());
   return result;
 }
 
+template <class new_word_t, class old_word_t, size_t old_word_count>
+static auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
+{
+  static_assert(std::is_unsigned_v<new_word_t> && std::is_unsigned_v<old_word_t>);
+
+  constexpr size_t old_word_size = sizeof(old_word_t);
+  constexpr size_t new_word_size = sizeof(new_word_t);
+  constexpr size_t new_word_count = old_word_size * old_word_count / new_word_size;
+  constexpr size_t new_words_per_old_word = new_word_count / old_word_count;
+  constexpr size_t old_words_per_new_word = old_word_count / new_word_count;
+  constexpr size_t shift =
+      new_word_size < old_word_size ? std::numeric_limits<new_word_t>::digits : std::numeric_limits<old_word_t>::digits;
+
+  static_assert(old_word_size * old_word_count % new_word_size == 0);
+
+  using return_type = counter<new_word_t, new_word_count>;
+
+  if constexpr (std::endian::native == std::endian::little)
+  {
+    return std::bit_cast<return_type>(old_words);
+  }
+  else
+  {
+    return_type new_words{};
+    if constexpr (new_word_size < old_word_size)
+    {
+      for (size_t i{}; i < old_word_count; ++i)
+      {
+        for (size_t j{}; j < new_words_per_old_word; ++j)
+        {
+          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j + 1));
+        }
+      }
+    }
+    if constexpr (new_word_size > old_word_size)
+    {
+      for (size_t i{}; i < new_word_count; ++i)
+      {
+        for (size_t j{}; j < old_words_per_new_word; ++j)
+        {
+          new_words[i] += (static_cast<new_word_t>(old_words[i * new_word_count + j]) << (shift * j));
+        }
+      }
+    }
+    return new_words;
+  }
+}
+
 template <class word_t, unsigned words, unsigned rounds>
-class Philox
+class philox_trait
 {
  public:
-  using counter_t = Counter<word_t, words>;
-  using internal_key_t = Counter<word_t, words / 2U>;
-  using key_t = Counter<word_t, words / 2U>;
-  using result_type = word_t;
+  using counter_type = counter<word_t, words>;
+  using internal_key_type = counter<word_t, words / 2U>;
+  using key_type = counter<word_t, words / 2U>;
+  using word_type = word_t;
 
  private:
   static_assert(words == 2U || words == 4U);
-  static_assert(std::is_same_v<result_type, uint32_t> || std::is_same_v<result_type, uint64_t>);
+  static_assert(std::is_same_v<word_type, uint32_t> || std::is_same_v<word_type, uint64_t>);
   static_assert(rounds <= 16U);
 
   template <class T, unsigned w>
   static constexpr bool is_case() noexcept
   {
-    return std::is_same_v<result_type, T> && words == w;
+    return std::is_same_v<word_type, T> && words == w;
   }
 
   static constexpr auto bump_constants() noexcept
@@ -523,20 +557,20 @@ class Philox
 
   struct HiLo
   {
-    result_type lo;
-    result_type hi;
+    word_type lo;
+    word_type hi;
   };
 
   struct BigEndianHiLo
   {
-    result_type hi;
-    result_type lo;
+    word_type hi;
+    word_type lo;
   };
 
   template <class TProduct>
   static constexpr auto hilo_cast(TProduct product) noexcept
   {
-    static_assert(sizeof(TProduct) / 2 == sizeof(result_type));
+    static_assert(sizeof(TProduct) / 2 == sizeof(word_type));
     if constexpr (std::endian::native == std::endian::little)
     {
       return std::bit_cast<HiLo>(product);
@@ -547,7 +581,7 @@ class Philox
     }
     else
     {
-      return HiLo{static_cast<result_type>(product), static_cast<result_type>(product >> sizeof(result_type))};
+      return HiLo{static_cast<word_type>(product), static_cast<word_type>(product >> sizeof(word_type))};
     }
   }
 
@@ -561,13 +595,13 @@ class Philox
   }
 
   template <uint64_t left>
-  static constexpr auto big_mul(result_type right) noexcept
+  static constexpr auto big_mul(word_type right) noexcept
   {
-    if constexpr (std::is_same_v<result_type, uint32_t>)
+    if constexpr (std::is_same_v<word_type, uint32_t>)
     {
       return hilo_cast(left * right);
     }
-    if constexpr (std::is_same_v<result_type, uint64_t>)
+    if constexpr (std::is_same_v<word_type, uint64_t>)
     {
       if constexpr (has_gcc_int128())
       {
@@ -587,7 +621,7 @@ class Philox
     }
   }
 
-  static constexpr counter_t round(counter_t ctr, internal_key_t key) noexcept
+  static constexpr counter_type round(auto ctr, auto key) noexcept
   {
     constexpr auto multipliers = multipliers_constants();
     if constexpr (words == 2U)
@@ -603,7 +637,7 @@ class Philox
     }
   }
 
-  static constexpr internal_key_t bump_key(internal_key_t key) noexcept
+  static constexpr auto bump_key(auto key) noexcept
   {
     constexpr auto bumps = bump_constants();
     if constexpr (words == 2U)
@@ -619,9 +653,9 @@ class Philox
   }
 
  public:
-  static constexpr internal_key_t set_key(key_t key) noexcept { return key; }
+  static constexpr internal_key_type set_key(key_type key) noexcept { return key; }
 
-  static constexpr counter_t bijection(counter_t counter, internal_key_t key) noexcept
+  static constexpr counter_type bijection(counter_type counter, internal_key_type key) noexcept
   {
     if constexpr (rounds != 0U)
     {
@@ -637,7 +671,7 @@ class Philox
 };
 
 template <class word_t, unsigned words, unsigned rounds>
-class ThreeFry
+class threefry_trait
 {
   static_assert(words == 2U || words == 4U);
   static_assert(std::is_same_v<word_t, uint32_t> || std::is_same_v<word_t, uint64_t>);
@@ -646,19 +680,19 @@ class ThreeFry
   static_assert(rounds <= 72U);
 
  public:
-  using counter_t = Counter<word_t, words>;
-  using key_t = Counter<word_t, words>;
-  using internal_key_t = Counter<word_t, words + 1U>;
-  using result_type = word_t;
+  using counter_type = counter<word_t, words>;
+  using key_type = counter<word_t, words>;
+  using internal_key_type = counter<word_t, words + 1U>;
+  using word_type = word_t;
 
  private:
   static constexpr auto parity() noexcept
   {
-    if constexpr (std::is_same_v<result_type, uint32_t>)
+    if constexpr (std::is_same_v<word_type, uint32_t>)
     {
       return static_cast<uint32_t>(0x1BD11BDA);
     }
-    if constexpr (std::is_same_v<result_type, uint64_t>)
+    if constexpr (std::is_same_v<word_type, uint64_t>)
     {
       return static_cast<uint64_t>(0x1BD11BDAA9FC1A22);
     }
@@ -667,7 +701,7 @@ class ThreeFry
   template <class T, unsigned w>
   static constexpr bool is_case() noexcept
   {
-    return std::is_same_v<result_type, T> && words == w;
+    return std::is_same_v<word_type, T> && words == w;
   }
 
   template <unsigned round>
@@ -702,9 +736,9 @@ class ThreeFry
    * To ensure that shift is always a compile time constant
    */
   template <unsigned shift>
-  static constexpr result_type rotate_left(result_type word) noexcept
+  static constexpr word_type rotate_left(word_type word) noexcept
   {
-    constexpr unsigned digits = std::numeric_limits<result_type>::digits;
+    constexpr unsigned digits = std::numeric_limits<word_type>::digits;
     constexpr unsigned left_shift = shift % digits;
     constexpr unsigned right_shift = digits - left_shift;
     if constexpr (left_shift != 0U)
@@ -718,30 +752,10 @@ class ThreeFry
   }
 
   template <unsigned r>
-  static constexpr counter_t bump_counter(counter_t counter, internal_key_t key) noexcept
+  static constexpr auto bump_counter(auto counter, auto key) noexcept
   {
-    constexpr size_t internal_key_size = internal_key_t::word_count();
-    constexpr result_type b = (r + 1U) / 4U;
-    if constexpr (words == 2)
-    {
-      counter[0U] += key[(b + 0U) % internal_key_size];
-      counter[1U] += key[(b + 1U) % internal_key_size] + b;
-    }
-    if constexpr (words == 4)
-    {
-      counter[0U] += key[(b + 0U) % internal_key_size];
-      counter[1U] += key[(b + 1U) % internal_key_size];
-      counter[2U] += key[(b + 2U) % internal_key_size];
-      counter[3U] += key[(b + 3U) % internal_key_size] + b;
-    }
-    return counter;
-  }
-
-  template <unsigned r, internal_key_t key>
-  static constexpr counter_t bump_counter_with_known_key(counter_t counter) noexcept
-  {
-    constexpr size_t internal_key_size = internal_key_t::word_count();
-    constexpr result_type b = (r + 1U) / 4U;
+    constexpr size_t internal_key_size = internal_key_type::word_count();
+    constexpr word_type b = (r + 1U) / 4U;
     if constexpr (words == 2)
     {
       counter[0U] += key[(b + 0U) % internal_key_size];
@@ -758,7 +772,7 @@ class ThreeFry
   }
 
   template <unsigned r>
-  static constexpr counter_t round(counter_t counter) noexcept
+  static constexpr auto round(auto counter) noexcept
   {
     constexpr auto rotation = rotations<r>();
     if constexpr (words == 2U)
@@ -782,7 +796,7 @@ class ThreeFry
   }
 
   template <unsigned r>
-  static constexpr counter_t round_applier(counter_t counter, internal_key_t key) noexcept
+  static constexpr auto round_applier(auto counter, auto key) noexcept
   {
     counter = round<r>(counter);
     if constexpr ((r + 1U) % 4U == 0U)
@@ -800,7 +814,7 @@ class ThreeFry
   }
 
  public:
-  static constexpr counter_t bijection(counter_t counter, internal_key_t key) noexcept
+  static constexpr counter_type bijection(counter_type counter, internal_key_type key) noexcept
   {
     if constexpr (rounds != 0U)
     {
@@ -813,9 +827,9 @@ class ThreeFry
     }
   }
 
-  static constexpr internal_key_t set_key(key_t key) noexcept
+  static constexpr internal_key_type set_key(key_type key) noexcept
   {
-    internal_key_t result{};
+    internal_key_type result{};
     result.back() = parity();
     for (size_t i{}; i != words; ++i)
     {
@@ -827,38 +841,38 @@ class ThreeFry
 };
 
 template <class Trait>
-class CounterBasedGenerator
+class counter_based_engine
 {
  public:
-  using result_type = typename Trait::result_type;
-  using key_t = typename Trait::key_t;
-  using counter_t = typename Trait::counter_t;
-  using internal_key_t = typename Trait::internal_key_t;
+  using word_type = typename Trait::word_type;
+  using key_type = typename Trait::key_type;
+  using counter_type = typename Trait::counter_type;
+  using internal_key_type = typename Trait::internal_key_type;
 
  private:
-  static constexpr size_t buffer_size = counter_t::word_count();
-  counter_t m_buffer{};
-  size_t m_index{};
-  counter_t m_counter{};
-  internal_key_t m_key{};
-
- public:
-  static constexpr counter_t bijection(counter_t counter, internal_key_t internal_key) noexcept
+  static constexpr auto bijection(counter_type counter, internal_key_type internal_key) noexcept
   {
     return Trait::bijection(counter, internal_key);
   }
 
-  static constexpr internal_key_t set_key(key_t key) noexcept { return Trait::set_key(key); }
+  static constexpr size_t buffer_size = counter_type::word_count();
+  counter_type m_buffer{};
+  size_t m_index{};
+  counter_type m_counter{};
+  internal_key_type m_key{};
 
-  constexpr CounterBasedGenerator(key_t key, counter_t counter) noexcept
+ public:
+  static constexpr internal_key_type set_key(key_type key) noexcept { return Trait::set_key(key); }
+
+  constexpr counter_based_engine(key_type key, counter_type counter) noexcept
       : m_buffer{}, m_index{}, m_counter{counter}, m_key{set_key(key)}
   {
     m_buffer = bijection(m_counter, m_key);
   }
 
-  explicit constexpr CounterBasedGenerator(key_t key) noexcept : CounterBasedGenerator(key, counter_t{}) {}
+  explicit constexpr counter_based_engine(key_type key) noexcept : counter_based_engine(key, counter_type{}) {}
 
-  constexpr CounterBasedGenerator() noexcept : CounterBasedGenerator(key_t{}, counter_t{}) {}
+  constexpr counter_based_engine() noexcept : counter_based_engine(key_type{}, counter_type{}) {}
 
   template <class T>
   constexpr void discard(T steps) noexcept
@@ -877,7 +891,7 @@ class CounterBasedGenerator
     }
   }
 
-  constexpr result_type operator()() noexcept
+  constexpr word_type operator()() noexcept
   {
     if (m_index == buffer_size)
     {
@@ -887,14 +901,15 @@ class CounterBasedGenerator
     return m_buffer[m_index++];
   }
 
-  static constexpr result_type max() noexcept { return std::numeric_limits<result_type>::max(); }
+  static constexpr word_type max() noexcept { return std::numeric_limits<word_type>::max(); }
 
-  static constexpr result_type min() noexcept { return std::numeric_limits<result_type>::max(); }
+  static constexpr word_type min() noexcept { return std::numeric_limits<word_type>::max(); }
 };
 
 template <class word_t, unsigned words, unsigned rounds>
-using ThreeFryGenerator = CounterBasedGenerator<ThreeFry<word_t, words, rounds>>;
+using ThreeFryGenerator = counter_based_engine<threefry_trait<word_t, words, rounds>>;
 
 template <class word_t, unsigned words, unsigned rounds>
-using PhiloxGenerator = CounterBasedGenerator<Philox<word_t, words, rounds>>;
+using PhiloxGenerator = counter_based_engine<philox_trait<word_t, words, rounds>>;
+
 }  // namespace qtfy::random

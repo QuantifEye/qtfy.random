@@ -10,7 +10,7 @@
 namespace std {
 
 template <class TTo, class TFrom>
-static constexpr auto bit_cast(TFrom value) noexcept
+constexpr auto bit_cast(TFrom value) noexcept
 {
   // TODO: delete once std::bit_cast is available.
   static_assert(sizeof(TTo) == sizeof(TFrom));
@@ -226,25 +226,25 @@ constexpr void swap(counter<word_t, words> &left, counter<word_t, words> &right)
 }
 
 template <class word_t, size_t words>
-static constexpr bool operator==(counter<word_t, words> left, counter<word_t, words> right) noexcept
+constexpr bool operator==(counter<word_t, words> left, counter<word_t, words> right) noexcept
 {
   return left.m_array == right.m_array;
 }
 
 template <class word_t, size_t words>
-static constexpr bool operator!=(counter<word_t, words> left, counter<word_t, words> right) noexcept
+constexpr bool operator!=(counter<word_t, words> left, counter<word_t, words> right) noexcept
 {
   return left.m_array != right.m_array;
 }
 
 template <class word_t, size_t words, class TAddend>
-static constexpr counter<word_t, words> operator+(counter<word_t, words> left, TAddend addend) noexcept
+constexpr counter<word_t, words> operator+(counter<word_t, words> left, TAddend addend) noexcept
 {
   return left += addend;
 }
 
 template <class word_t, size_t words, class TAddend>
-static constexpr counter<word_t, words> operator-(counter<word_t, words> left, TAddend subtrahend) noexcept
+constexpr counter<word_t, words> operator-(counter<word_t, words> left, TAddend subtrahend) noexcept
 {
   return left -= subtrahend;
 }

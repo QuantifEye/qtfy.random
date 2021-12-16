@@ -5,8 +5,7 @@
 
 namespace qtfy::random {
 
-template <class word_t, unsigned words, unsigned rounds, class counter_t = counter<word_t, words>,
-          class key_t = counter<word_t, words>, class internal_key_t = counter<word_t, words + 1U>>
+template <class word_t, unsigned words, unsigned rounds>
 class threefry_trait
 {
   static_assert(words == 2U || words == 4U);
@@ -57,7 +56,7 @@ class threefry_trait
   template <unsigned r>
   static constexpr auto bump_counter(auto counter, auto key) noexcept
   {
-    constexpr size_t internal_key_size = internal_key_t{}.size();
+    constexpr size_t internal_key_size = internal_key_type{}.size();
     constexpr word_t b = (r + 1U) / 4U;
     if constexpr (words == 2)
     {
@@ -118,12 +117,12 @@ class threefry_trait
   }
 
  public:
-  using counter_type = counter_t;
-  using key_type = key_t;
-  using internal_key_type = internal_key_t;
+  using counter_type = counter<word_t, words>;
+  using key_type = counter<word_t, words>;
+  using internal_key_type = counter<word_t, words + 1U>;
   using word_type = word_t;
 
-  static constexpr counter_t bijection(counter_t counter, internal_key_t key) noexcept
+  static constexpr counter_type bijection(counter_type counter, internal_key_type key) noexcept
   {
     if constexpr (rounds != 0U)
     {
@@ -136,9 +135,9 @@ class threefry_trait
     }
   }
 
-  static constexpr internal_key_t set_key(key_t key) noexcept
+  static constexpr internal_key_type set_key(key_type key) noexcept
   {
-    internal_key_t result{};
+    internal_key_type result{};
     result.back() = parity();
     for (size_t i{}; i != words; ++i)
     {

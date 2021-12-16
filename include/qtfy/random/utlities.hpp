@@ -60,6 +60,8 @@ constexpr bool has_unsigned_int128() noexcept
 template <uint64_t left, std::unsigned_integral right_t>
 constexpr auto big_mul(right_t right) noexcept
 {
+  constexpr bool use_fallback = false;
+
   static_assert(std::is_same_v<right_t, uint32_t> || std::is_same_v<right_t, uint64_t>);
 
   using result_t = HiLo<right_t>;
@@ -70,13 +72,9 @@ constexpr auto big_mul(right_t right) noexcept
   }
   if constexpr (std::is_same_v<right_t, uint64_t>)
   {
-    if constexpr (has_unsigned_int128())
+    if constexpr (has_unsigned_int128() && !use_fallback)
     {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
       constexpr auto big_left = static_cast<unsigned __int128>(left);
-#pragma GCC diagnostic pop
-
       return std::bit_cast<result_t>(big_left * right);
     }
     else

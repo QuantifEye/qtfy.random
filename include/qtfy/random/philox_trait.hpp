@@ -5,8 +5,7 @@
 
 namespace qtfy::random {
 
-template <class word_t, unsigned words, unsigned rounds, class counter_t = counter<word_t, words>,
-          class key_t = counter<word_t, words / 2U>, class internal_key_t = counter<word_t, words / 2U>>
+template <class word_t, unsigned words, unsigned rounds>
 class philox_trait
 {
   static_assert(words == 2U || words == 4U);
@@ -61,59 +60,115 @@ class philox_trait
     if constexpr (words == 2U)
     {
       const auto product = big_mul<multipliers[0U]>(ctr[0U]);
-      return counter_t{product.hi ^ key[0U] ^ ctr[1U], product.lo};
+      return counter_type{product.hi ^ key[0U] ^ ctr[1U], product.lo};
     }
     if constexpr (words == 4U)
     {
       const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
       const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
-      return counter_t{product1.hi ^ ctr[1U] ^ key[0U], product1.lo, product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
+      return counter_type{product1.hi ^ ctr[1U] ^ key[0U], product1.lo, product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
     }
   }
 
   static constexpr auto bump_key(auto key) noexcept
   {
     constexpr auto bumps = bump_constants();
-    if constexpr (words == 2U)
+    constexpr bool use_loop = true;
+    if constexpr (use_loop)
     {
-      key[0U] += bumps[0U];
+      // TODO: can this loop be vectorised?
+      for (size_t i{}; i < words / 2U; ++i)
+      {
+        key[i] += bumps[i];
+      }
     }
-    if constexpr (words == 4U)
+    else
     {
-      key[0U] += bumps[0U];
-      key[1U] += bumps[1U];
+      if constexpr (words == 2U)
+      {
+        key[0U] += bumps[0U];
+      }
+      if constexpr (words == 4U)
+      {
+        key[0U] += bumps[0U];
+        key[1U] += bumps[1U];
+      }
     }
+
     return key;
   }
 
  public:
-  using counter_type = counter_t;
-  using internal_key_type = internal_key_t;
-  using key_type = key_t;
+  using counter_type = counter<word_t, words>;
+  using key_type = counter<word_t, words / 2>;
+  using internal_key_type = key_type;
   using word_type = word_t;
 
-  static constexpr internal_key_t set_key(key_t key) noexcept { return key; }
+  static constexpr internal_key_type set_key(key_type key) noexcept { return key; }
 
-  static constexpr counter_t bijection(counter_t counter, internal_key_t key) noexcept
+  static constexpr counter_type bijection(counter_type ctr, internal_key_type key) noexcept
   {
-    if constexpr (rounds == 0U)
+    constexpr int version = 1;
+    if constexpr (version == 1)
     {
-      return counter;
-    }
-    if constexpr (rounds == 1U)
-    {
-      return round(counter, key);
-    }
-    else
-    {
-      counter = round(counter, key);
-      for (unsigned i{rounds - 1}; i != 0U; --i)
+      if constexpr (rounds != 0U)
       {
-        key = bump_key(key);
-        counter = round(counter, key);
+        ctr = round(ctr, key);
+        for (unsigned i{rounds}; --i;)
+        {
+          key = bump_key(key);
+          ctr = round(ctr, key);
+        }
       }
-      return counter;
     }
+    if constexpr (version == 2)
+    {
+      for (unsigned i{}; i != rounds; ++i)
+      {
+        if (i != 0)
+        {
+          key = bump_key(key);
+        }
+        ctr = round(ctr, key);
+      }
+    }
+    if constexpr (version == 3)
+    {
+      using namespace qtfy::random::utilities;
+      constexpr auto bumps = bump_constants();
+      constexpr auto multipliers = multipliers_constants();
+
+      // TODO: will this loop unroll?
+      for (unsigned i{}; i != rounds; ++i)
+      {
+        if (i != 0)
+        {
+          // TODO: can this loop be vectorised?
+          for (size_t j{}; j < words / 2U; ++j)
+          {
+            key[j] += bumps[j];
+          }
+        }
+
+        if constexpr (words == 2U)
+        {
+          const auto product = big_mul<multipliers[0U]>(ctr[0U]);
+          ctr[0U] = product.hi ^ key[0U] ^ ctr[1U];
+          ctr[1U] = product.lo;
+        }
+        if constexpr (words == 4U)
+        {
+          // TODO: can the following two lines be calculated in a single vectorised step?
+          const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
+          const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
+          ctr[0U] = product1.hi ^ ctr[1U] ^ key[0U];
+          ctr[1U] = product1.lo;
+          ctr[2U] = product0.hi ^ ctr[3U] ^ key[1U];
+          ctr[3U] = product0.lo;
+        }
+      }
+    }
+    return ctr;
   }
 };
 

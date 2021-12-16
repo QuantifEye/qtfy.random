@@ -266,6 +266,8 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahen
 template <std::unsigned_integral new_word_t, class old_word_t, size_t old_word_count>
 auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
 {
+  constexpr bool use_endian_independent_version = false;
+
   constexpr size_t old_word_size = sizeof(old_word_t);
   constexpr size_t new_word_size = sizeof(new_word_t);
   constexpr size_t new_word_count = old_word_size * old_word_count / new_word_size;
@@ -282,7 +284,7 @@ auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
   {
     return old_words;
   }
-  if constexpr (std::endian::native == std::endian::little)
+  if constexpr (std::endian::native == std::endian::little && !use_endian_independent_version)
   {
     return std::bit_cast<return_type>(old_words);
   }
@@ -295,7 +297,7 @@ auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
       {
         for (size_t j{}; j < new_words_per_old_word; ++j)
         {
-          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j + 1));
+          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j));
         }
       }
     }

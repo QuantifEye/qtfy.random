@@ -8,11 +8,13 @@ namespace qtfy::random {
 template <class Trait, class result_t = typename Trait::word_type>
 class counter_based_engine
 {
+ public:
   using word_type = typename Trait::word_type;
   using key_type = typename Trait::key_type;
   using counter_type = typename Trait::counter_type;
   using internal_key_type = typename Trait::internal_key_type;
 
+ private:
   static constexpr auto bijection(counter_type counter, internal_key_type internal_key) noexcept
   {
     if constexpr (std::is_same_v<word_type, result_t>)

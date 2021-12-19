@@ -70,16 +70,17 @@ void test_discard()
 
 void test_different_return_types()
 {
-  qtfy::random::threefry_engine<uint32_t, 4, 20, uint64_t> gen1{};
-  qtfy::random::threefry_engine<uint32_t, 4, 20, uint32_t> gen2{};
+
+  threefry4x64<20, uint64_t> gen64{};
+  threefry4x64<20, uint32_t> gen32{};
 
   uint64_t two32 = uint64_t{UINT32_MAX} + uint64_t{1};
   for (int i = 0; i < 100; ++i)
   {
-    uint64_t x = gen1();
+    uint64_t x = gen64();
 
-    uint64_t y0 = gen2();
-    uint64_t y1 = gen2();
+    uint64_t y0 = gen32();
+    uint64_t y1 = gen32();
     uint64_t y = y0 + (y1 * two32);
 
     assert_are_equal(x, y);

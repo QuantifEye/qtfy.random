@@ -7,7 +7,7 @@ namespace qtfy::random {
 
 /**
  * A class that represents a multi word unsigned integer where each word is an unsigned integral.
- * The class shares most of the interface that std::array provides in order to access indivisual elements.
+ * The class shares most of the interface that std::array provides in order to access individual elements.
  * Addition and subtraction is supported for integral numbers which allows the
  * class to be used as a counter.
  *
@@ -31,7 +31,6 @@ class counter
 {
   static_assert(words != 0U, "cannot have a counter with no words");
   static_assert(!std::is_same_v<word_t, bool>, "cannot make a counter of bool");
-
   using array_t = std::array<word_t, words>;
 
  public:
@@ -49,10 +48,6 @@ class counter
 
   // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
   std::array<word_t, words> m_array{};
-
-  static constexpr counter max() noexcept;
-
-  static constexpr counter min() noexcept;
 
   constexpr counter &operator++() noexcept;
 
@@ -126,22 +121,6 @@ class counter
 };
 
 template <std::unsigned_integral word_t, size_t words>
-constexpr counter<word_t, words> counter<word_t, words>::max() noexcept
-{
-  counter<word_t, words> result{};
-  result.fill(std::numeric_limits<word_t>::max());
-  return result;
-}
-
-template <std::unsigned_integral word_t, size_t words>
-constexpr counter<word_t, words> counter<word_t, words>::min() noexcept
-{
-  counter<word_t, words> result{};
-  result.fill(std::numeric_limits<word_t>::min());
-  return result;
-}
-
-template <std::unsigned_integral word_t, size_t words>
 constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
 {
   for (size_t i{0U}; ++m_array[i] == std::numeric_limits<word_t>::min() && ++i != words;)
@@ -197,7 +176,8 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) n
   {
     m_array[0U] += addend;
   }
-  else if constexpr (sizeof(T) <= sizeof(word_t))
+
+  if constexpr (sizeof(T) <= sizeof(word_t))
   {
     const word_t old_value = m_array[0U];
     const word_t new_value = old_value + static_cast<word_t>(addend);
@@ -264,7 +244,8 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahen
 }
 
 template <std::unsigned_integral new_word_t, class old_word_t, size_t old_word_count>
-auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
+requires((sizeof(old_word_t) * old_word_count) % sizeof(new_word_t) ==
+         size_t{0}) constexpr auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
 {
   constexpr bool use_endian_independent_version = false;
 
@@ -284,7 +265,7 @@ auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
   {
     return old_words;
   }
-  if constexpr (std::endian::native == std::endian::little && !use_endian_independent_version)
+  else if constexpr (std::endian::native == std::endian::little && !use_endian_independent_version)
   {
     return std::bit_cast<return_type>(old_words);
   }
@@ -313,7 +294,14 @@ auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
     }
     return new_words;
   }
+
 }
+
+static_assert(std::is_trivially_copyable_v<counter<uint8_t, 4>>);
+static_assert(std::is_trivially_copyable_v<counter<uint16_t, 4>>);
+static_assert(std::is_trivially_copyable_v<counter<uint32_t, 4>>);
+static_assert(std::is_trivially_copyable_v<counter<uint64_t, 4>>);
+
 
 }  // namespace qtfy::random
 

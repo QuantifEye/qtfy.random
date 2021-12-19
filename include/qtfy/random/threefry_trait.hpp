@@ -5,53 +5,15 @@
 
 namespace qtfy::random {
 
-template <class word_t, unsigned words, unsigned rounds>
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t parity,
+          std::array<std::array<unsigned, 8>, words / 2> rotations>
 class threefry_trait
 {
   static_assert(words == 2U || words == 4U);
   static_assert(std::is_same_v<word_t, uint32_t> || std::is_same_v<word_t, uint64_t>);
   static_assert(rounds <= 72U);
 
-  static constexpr auto parity() noexcept
-  {
-    if constexpr (std::is_same_v<word_t, uint32_t>)
-    {
-      return static_cast<uint32_t>(0x1BD11BDA);
-    }
-    if constexpr (std::is_same_v<word_t, uint64_t>)
-    {
-      return static_cast<uint64_t>(0x1BD11BDAA9FC1A22);
-    }
-  }
-
-  static constexpr auto rotations_constants() noexcept
-  {
-    using std::array;
-    using arr_t = array<unsigned, 8U>;
-    if constexpr (std::is_same_v<word_t, uint32_t> && words == 2U)
-    {
-      return array<arr_t, 1>{arr_t{13U, 15U, 26U, 6U, 17U, 29U, 16U, 24U}};
-    }
-    if constexpr (std::is_same_v<word_t, uint64_t> && words == 2U)
-    {
-      return array<arr_t, 1>{arr_t{16U, 42U, 12U, 31U, 16U, 32U, 24U, 21U}};
-    }
-    if constexpr (std::is_same_v<word_t, uint32_t> && words == 4U)
-    {
-      return array<arr_t, 2>{arr_t{10U, 11U, 13U, 23U, 6U, 17U, 25U, 18U},
-                             arr_t{26U, 21U, 27U, 5U, 20U, 11U, 10U, 20U}};
-    }
-    if constexpr (std::is_same_v<word_t, uint64_t> && words == 4U)
-    {
-      return array<arr_t, 2>{arr_t{14U, 52U, 23U, 5U, 25U, 46U, 58U, 32U},
-                             arr_t{16U, 57U, 40U, 37U, 33U, 12U, 22U, 32U}};
-    }
-  }
-
-  static constexpr auto rotations(unsigned i, unsigned round) noexcept
-  {
-    return rotations_constants().at(i).at(round % 8U);
-  }
+  static consteval auto get_rotation(unsigned i, unsigned round) noexcept { return rotations.at(i).at(round % 8U); }
 
   template <unsigned r>
   static constexpr auto bump_counter(auto counter, auto key) noexcept
@@ -73,14 +35,29 @@ class threefry_trait
     return counter;
   }
 
+  template <unsigned shift>
+  static constexpr auto rotate_left(auto word) noexcept
+  {
+    constexpr unsigned digits = std::numeric_limits<decltype(word)>::digits;
+    constexpr unsigned left_shift = shift % digits;
+    constexpr unsigned right_shift = digits - left_shift;
+    if constexpr (left_shift != 0U)
+    {
+      return (word << left_shift) | (word >> right_shift);
+    }
+    else
+    {
+      return word;
+    }
+  }
+
   template <unsigned r>
   static constexpr auto round(auto counter) noexcept
   {
-    using qtfy::random::utilities::rotate_left;
     if constexpr (words == 2U)
     {
       counter[0U] += counter[1U];
-      counter[1U] = rotate_left<rotations(0U, r)>(counter[1U]) ^ counter[0U];
+      counter[1U] = rotate_left<get_rotation(0U, r)>(counter[1U]) ^ counter[0U];
     }
     if constexpr (words == 4U)
     {
@@ -90,9 +67,9 @@ class threefry_trait
       constexpr size_t index2 = 2U;
       constexpr size_t index3 = is_even ? 3U : 1U;
       counter[index0] += counter[index1];
-      counter[index1] = rotate_left<rotations(0U, r)>(counter[index1]) ^ counter[index0];
+      counter[index1] = rotate_left<get_rotation(0U, r)>(counter[index1]) ^ counter[index0];
       counter[index2] += counter[index3];
-      counter[index3] = rotate_left<rotations(1U, r)>(counter[index3]) ^ counter[index2];
+      counter[index3] = rotate_left<get_rotation(1U, r)>(counter[index3]) ^ counter[index2];
     }
     return counter;
   }
@@ -138,7 +115,7 @@ class threefry_trait
   static constexpr internal_key_type set_key(key_type key) noexcept
   {
     internal_key_type result{};
-    result.back() = parity();
+    result.back() = parity;
     for (size_t i{}; i != words; ++i)
     {
       result[i] = key[i];
@@ -147,6 +124,35 @@ class threefry_trait
     return result;
   }
 };
+
+template <class word_t, unsigned rounds, word_t parity, unsigned r0, unsigned r1, unsigned r2, unsigned r3, unsigned r4,
+          unsigned r5, unsigned r6, unsigned r7>
+using threefry2_trait =
+    threefry_trait<word_t, 2, rounds, parity,
+                   std::array<std::array<unsigned, 8>, 1>{std::array<unsigned, 8>{r0, r1, r2, r3, r4, r5, r6, r7}}>;
+
+template <class word_t, unsigned rounds, word_t parity, unsigned r00, unsigned r01, unsigned r02, unsigned r03,
+          unsigned r04, unsigned r05, unsigned r06, unsigned r07, unsigned r10, unsigned r11, unsigned r12,
+          unsigned r13, unsigned r14, unsigned r15, unsigned r16, unsigned r17>
+using threefry4_trait = threefry_trait<word_t, 4, rounds, parity,
+                                       std::array<std::array<unsigned, 8>, 2>{
+                                           std::array<unsigned, 8>{r00, r01, r02, r03, r04, r05, r06, r07},
+                                           std::array<unsigned, 8>{r10, r11, r12, r13, r14, r15, r16, r17}}>;
+
+template <unsigned rounds>
+using threefry4x64_trait = threefry4_trait<uint64_t, rounds, 0x1BD11BDAA9FC1A22, 14U, 52U, 23U, 5U, 25U, 46U, 58U, 32U,
+                                           16U, 57U, 40U, 37U, 33U, 12U, 22U, 32U>;
+
+template <unsigned rounds>
+using threefry2x64_trait =
+    threefry2_trait<uint64_t, rounds, 0x1BD11BDAA9FC1A22, 16U, 42U, 12U, 31U, 16U, 32U, 24U, 21U>;
+
+template <unsigned rounds>
+using threefry4x32_trait = threefry4_trait<uint32_t, rounds, 0x1BD11BDA, 10U, 11U, 13U, 23U, 6U, 17U, 25U, 18U, 26U,
+                                           21U, 27U, 5U, 20U, 11U, 10U, 20U>;
+
+template <unsigned rounds>
+using threefry2x32_trait = threefry2_trait<uint64_t, rounds, 0x1BD11BDA, 13U, 15U, 26U, 6U, 17U, 29U, 16U, 24U>;
 
 }  // namespace qtfy::random
 

@@ -13,22 +13,6 @@ using std::size_t;
 
 namespace qtfy::random::utilities {
 
-template <unsigned shift, std::unsigned_integral T>
-constexpr T rotate_left(T word) noexcept
-{
-  constexpr unsigned digits = std::numeric_limits<T>::digits;
-  constexpr unsigned left_shift = shift % digits;
-  constexpr unsigned right_shift = digits - left_shift;
-  if constexpr (left_shift != 0U)
-  {
-    return (word << left_shift) | (word >> right_shift);
-  }
-  else
-  {
-    return word;
-  }
-}
-
 template <class T, std::endian endian = std::endian::native>
 struct HiLo
 {
@@ -74,7 +58,11 @@ constexpr auto big_mul(right_t right) noexcept
   {
     if constexpr (has_unsigned_int128() && !use_fallback)
     {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
       constexpr auto big_left = static_cast<unsigned __int128>(left);
+#pragma GCC diagnostic pop
+
       return std::bit_cast<result_t>(big_left * right);
     }
     else

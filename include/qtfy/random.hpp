@@ -9,11 +9,29 @@
 
 namespace qtfy::random {
 
-template <class word_t, unsigned words, unsigned rounds, class result_t = word_t>
-using threefry_engine = counter_based_engine<threefry_trait<word_t, words, rounds>, result_t>;
+template<unsigned rounds = 20, class return_t = uint64_t>
+using threefry2x64 = counter_based_engine<threefry2x64_trait<rounds>, return_t>;
 
-template <class word_t, unsigned words, unsigned rounds, class result_t = word_t>
-using philox_engine = counter_based_engine<philox_trait<word_t, words, rounds>, result_t>;
+template<unsigned rounds = 20, class return_t = uint32_t>
+using threefry2x32 = counter_based_engine<threefry2x32_trait<rounds>, return_t>;
+
+template<unsigned rounds = 20, class return_t = uint64_t>
+using threefry4x64 = counter_based_engine<threefry4x64_trait<rounds>, return_t>;
+
+template<unsigned rounds = 20, class return_t = uint32_t>
+using threefry4x32 = counter_based_engine<threefry4x32_trait<rounds>, return_t>;
+
+template<unsigned rounds = 10, class return_t = uint64_t>
+using philox2x64 = counter_based_engine<philox2x64_trait<rounds>, return_t>;
+
+template<unsigned rounds = 10, class return_t = uint32_t>
+using philox2x32 = counter_based_engine<philox2x32_trait<rounds>, return_t>;
+
+template<unsigned rounds = 10, class return_t = uint64_t>
+using philox4x64 = counter_based_engine<philox4x64_trait<rounds>, return_t>;
+
+template<unsigned rounds = 10, class return_t = uint32_t>
+using philox4x32 = counter_based_engine<philox4x32_trait<rounds>, return_t>;
 
 }  // namespace qtfy::random
 

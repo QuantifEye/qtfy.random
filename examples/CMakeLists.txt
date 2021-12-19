@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION ${QTFY_CMAKE_MINIMUM_VERSION})
+
+qtfy_add_test(eg1_counters eg1_counters.cpp)
+qtfy_add_test(eg2_counter_arithmetic eg2_counter_arithmetic.cpp)
+qtfy_add_test(eg3_array_interface eg3_array_interface.cpp)
+qtfy_add_test(eg4_counter_based_generator eg4_counter_based_generator.cpp)

@@ -6,10 +6,11 @@
 namespace qtfy::random {
 
 /**
- * A class that represents a multi word unsigned integer where each word is an unsigned integral.
- * The class shares most of the interface that std::array provides in order to access individual elements.
- * Addition and subtraction is supported for integral numbers which allows the
- * class to be used as a counter.
+ * A class that represents a multi word unsigned integer where each word is an
+ * unsigned integral. The class shares most of the interface that std::array
+ * provides in order to access individual elements. Addition and subtraction is
+ * supported for integral numbers which allows the class to be used as a
+ * counter.
  *
  * @tparam word_t
  * The type of the individual words that make up the counter.
@@ -23,8 +24,8 @@ namespace qtfy::random {
  * as counter<uint32_t, 2>{7, 8} == 7 + 8 >> 32
  * or counter<uint32_t, 2>{7, 8} == 7 + 8 * pow(2, 32)
  *
- * Note that the least significant word is stored in the smallest address location.
- * This implies that {1, 2} + 1 = {2, 2}
+ * Note that the least significant word is stored in the smallest address
+ * location. This implies that {1, 2} + 1 = {2, 2}
  */
 template <std::unsigned_integral word_t, size_t words>
 class counter
@@ -69,19 +70,34 @@ class counter
 
   constexpr reverse_iterator rbegin() noexcept { return m_array.rbegin(); }
 
-  constexpr const_reverse_iterator rbegin() const noexcept { return m_array.rbegin(); }
+  constexpr const_reverse_iterator rbegin() const noexcept
+  {
+    return m_array.rbegin();
+  }
 
   constexpr reverse_iterator rend() noexcept { return m_array.rend(); }
 
-  constexpr const_reverse_iterator rend() const noexcept { return m_array.rend(); }
+  constexpr const_reverse_iterator rend() const noexcept
+  {
+    return m_array.rend();
+  }
 
-  constexpr const_reverse_iterator crbegin() const noexcept { return m_array.crbegin(); }
+  constexpr const_reverse_iterator crbegin() const noexcept
+  {
+    return m_array.crbegin();
+  }
 
-  constexpr const_reverse_iterator crend() const noexcept { return m_array.crend(); }
+  constexpr const_reverse_iterator crend() const noexcept
+  {
+    return m_array.crend();
+  }
 
   constexpr reference operator[](size_type i) noexcept { return m_array[i]; }
 
-  constexpr const_reference operator[](size_type i) const noexcept { return m_array[i]; }
+  constexpr const_reference operator[](size_type i) const noexcept
+  {
+    return m_array[i];
+  }
 
   constexpr reference at(size_type i) { return m_array.at(i); }
 
@@ -123,7 +139,7 @@ class counter
 template <std::unsigned_integral word_t, size_t words>
 constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
 {
-  for (size_t i{0U}; ++m_array[i] == std::numeric_limits<word_t>::min() && ++i != words;)
+  for (size_t i{0U}; ++m_array[i] == word_t{} && ++i != words;)
   {
   }
   return *this;
@@ -132,59 +148,70 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator++() noexcept
 template <std::unsigned_integral word_t, size_t words>
 constexpr counter<word_t, words> &counter<word_t, words>::operator--() noexcept
 {
-  for (size_t i{0U}; --m_array[i] == std::numeric_limits<word_t>::max() && ++i != words;)
+  constexpr auto max = std::numeric_limits<word_t>::max();
+  for (size_t i{}; --m_array[i] == max && ++i != words;)
   {
   };
   return *this;
 }
 
 template <std::unsigned_integral word_t, size_t words>
-constexpr void swap(counter<word_t, words> &left, counter<word_t, words> &right) noexcept
+constexpr void swap(counter<word_t, words> &left,
+                    counter<word_t, words> &right) noexcept
 {
   left.swap(right);
 }
 
 template <std::unsigned_integral word_t, size_t words>
-constexpr bool operator==(counter<word_t, words> left, counter<word_t, words> right) noexcept
+constexpr bool operator==(counter<word_t, words> left,
+                          counter<word_t, words> right) noexcept
 {
   return left.m_array == right.m_array;
 }
 
 template <std::unsigned_integral word_t, size_t words>
-constexpr bool operator!=(counter<word_t, words> left, counter<word_t, words> right) noexcept
+constexpr bool operator!=(counter<word_t, words> left,
+                          counter<word_t, words> right) noexcept
 {
   return left.m_array != right.m_array;
 }
 
 template <std::unsigned_integral word_t, size_t words, std::unsigned_integral T>
-constexpr counter<word_t, words> operator+(counter<word_t, words> left, T addend) noexcept
+constexpr counter<word_t, words> operator+(counter<word_t, words> left,
+                                           T addend) noexcept
 {
   return left += addend;
 }
 
 template <std::unsigned_integral word_t, size_t words, std::unsigned_integral T>
-constexpr counter<word_t, words> operator-(counter<word_t, words> left, T subtrahend) noexcept
+constexpr counter<word_t, words> operator-(counter<word_t, words> left,
+                                           T subtrahend) noexcept
 {
   return left -= subtrahend;
 }
 
 template <std::unsigned_integral word_t, size_t words>
 template <std::unsigned_integral T>
-constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator+=(
+    T addend) noexcept
 {
+  // TODO: can we reinterpret this as a either
+  // 1) a counter with a single integral
+  // 2) a counter with a larger word type so that a more optimal
+  //    algorithm can be used
+  // *) do we need to align counters to the alignment of uintmax_t?
   if constexpr (words == 1U)
   {
     m_array[0U] += addend;
   }
-
-  if constexpr (sizeof(T) <= sizeof(word_t))
+  else if constexpr (sizeof(T) <= sizeof(word_t))
   {
     const word_t old_value = m_array[0U];
     const word_t new_value = old_value + static_cast<word_t>(addend);
     m_array[0U] = new_value;
     if (old_value > new_value)
     {
-      for (size_t i{1U}; ++m_array[i] == std::numeric_limits<word_t>::min() && ++i != words;)
+      for (size_t i{1U}; ++m_array[i] == word_t{} && ++i != words;)
       {
       }
     }
@@ -208,7 +235,8 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator+=(T addend) n
 
 template <std::unsigned_integral word_t, size_t words>
 template <std::unsigned_integral T>
-constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahend) noexcept
+constexpr counter<word_t, words> &counter<word_t, words>::operator-=(
+    T subtrahend) noexcept
 {
   if constexpr (words == 1U)
   {
@@ -221,7 +249,8 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahen
     m_array[0U] = new_value;
     if (old_value < new_value)
     {
-      for (size_t i{1U}; --m_array[i] == std::numeric_limits<word_t>::max() && ++i != words;)
+      constexpr auto max = std::numeric_limits<word_t>::max();
+      for (size_t i{1U}; --m_array[i] == max && ++i != words;)
       {
       };
     }
@@ -243,21 +272,22 @@ constexpr counter<word_t, words> &counter<word_t, words>::operator-=(T subtrahen
   return *this;
 }
 
-template <std::unsigned_integral new_word_t, class old_word_t, size_t old_word_count>
-requires((sizeof(old_word_t) * old_word_count) % sizeof(new_word_t) ==
-         size_t{0}) constexpr auto reinterpret(counter<old_word_t, old_word_count> old_words) noexcept
+template <std::unsigned_integral new_word_t,
+          std::unsigned_integral old_word_t,
+          size_t old_count>
+requires((sizeof(old_word_t) * old_count) % sizeof(new_word_t) == 0U)
+constexpr auto reinterpret(counter<old_word_t, old_count> old_words) noexcept
 {
-  constexpr bool use_endian_independent_version = false;
-
   constexpr size_t old_word_size = sizeof(old_word_t);
   constexpr size_t new_word_size = sizeof(new_word_t);
-  constexpr size_t new_word_count = old_word_size * old_word_count / new_word_size;
-  constexpr size_t new_words_per_old_word = new_word_count / old_word_count;
-  constexpr size_t old_words_per_new_word = old_word_count / new_word_count;
-  constexpr size_t shift =
-      new_word_size < old_word_size ? std::numeric_limits<new_word_t>::digits : std::numeric_limits<old_word_t>::digits;
+  constexpr size_t new_word_count = old_word_size * old_count / new_word_size;
+  constexpr size_t new_words_per_old_word = new_word_count / old_count;
+  constexpr size_t old_words_per_new_word = old_count / new_word_count;
+  constexpr size_t shift = new_word_size < old_word_size
+                               ? std::numeric_limits<new_word_t>::digits
+                               : std::numeric_limits<old_word_t>::digits;
 
-  static_assert(old_word_size * old_word_count % new_word_size == 0);
+  static_assert(old_word_size * old_count % new_word_size == 0);
 
   using return_type = counter<new_word_t, new_word_count>;
 
@@ -265,8 +295,13 @@ requires((sizeof(old_word_t) * old_word_count) % sizeof(new_word_t) ==
   {
     return old_words;
   }
-  else if constexpr (std::endian::native == std::endian::little && !use_endian_independent_version)
+
+  constexpr bool use_bit_cast = true;
+  if constexpr (std::endian::native == std::endian::little && use_bit_cast)
   {
+    // TODO: the performance of this should be investigated.
+    // if the alignment of the resultant type and the alignment
+    // of the original type is no the same, this copy might not be elided.
     return std::bit_cast<return_type>(old_words);
   }
   else
@@ -274,11 +309,12 @@ requires((sizeof(old_word_t) * old_word_count) % sizeof(new_word_t) ==
     return_type new_words{};
     if constexpr (new_word_size < old_word_size)
     {
-      for (size_t i{}; i < old_word_count; ++i)
+      for (size_t i{}; i < old_count; ++i)
       {
         for (size_t j{}; j < new_words_per_old_word; ++j)
         {
-          new_words[i * old_word_count + j] = static_cast<new_word_t>(old_words[i] >> (shift * j));
+          new_words[i * old_count + j] =
+              static_cast<new_word_t>(old_words[i] >> (shift * j));
         }
       }
     }
@@ -288,20 +324,15 @@ requires((sizeof(old_word_t) * old_word_count) % sizeof(new_word_t) ==
       {
         for (size_t j{}; j < old_words_per_new_word; ++j)
         {
-          new_words[i] += (static_cast<new_word_t>(old_words[i * new_word_count + j]) << (shift * j));
+          new_words[i] +=
+              (static_cast<new_word_t>(old_words[i * new_word_count + j])
+               << (shift * j));
         }
       }
     }
     return new_words;
   }
-
 }
-
-static_assert(std::is_trivially_copyable_v<counter<uint8_t, 4>>);
-static_assert(std::is_trivially_copyable_v<counter<uint16_t, 4>>);
-static_assert(std::is_trivially_copyable_v<counter<uint32_t, 4>>);
-static_assert(std::is_trivially_copyable_v<counter<uint64_t, 4>>);
-
 
 }  // namespace qtfy::random
 

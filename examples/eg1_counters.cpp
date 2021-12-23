@@ -38,10 +38,7 @@ int main()
   // note that this value is equivalent to the value calculated manually above.
   assert_equal(ctr32x1[0], value);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
   const counter<uint8_t, 3> ctr8x3{1, 2, 3};
-#pragma GCC diagnostic pop
 
   // The following line gives a compile error as the reinterpret function is only implemented
   // for types that can be reinterpreted exactly.

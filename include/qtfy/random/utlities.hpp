@@ -4,6 +4,7 @@
 #include <array>
 #include <bit>
 #include <cinttypes>
+#include <cmath>
 #include <limits>
 #include <type_traits>
 
@@ -44,9 +45,8 @@ constexpr bool has_unsigned_int128() noexcept
 template <uint64_t left, std::unsigned_integral right_t>
 constexpr auto big_mul(right_t right) noexcept
 {
-  constexpr bool use_fallback = false;
-
-  static_assert(std::is_same_v<right_t, uint32_t> || std::is_same_v<right_t, uint64_t>);
+  static_assert(std::is_same_v<right_t, uint32_t> ||
+                std::is_same_v<right_t, uint64_t>);
 
   using result_t = HiLo<right_t>;
 
@@ -56,13 +56,10 @@ constexpr auto big_mul(right_t right) noexcept
   }
   if constexpr (std::is_same_v<right_t, uint64_t>)
   {
-    if constexpr (has_unsigned_int128() && !use_fallback)
+    constexpr bool use_bit_cast = false;
+    if constexpr (has_unsigned_int128() && use_bit_cast)
     {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
       constexpr auto big_left = static_cast<unsigned __int128>(left);
-#pragma GCC diagnostic pop
-
       return std::bit_cast<result_t>(big_left * right);
     }
     else
@@ -75,13 +72,16 @@ constexpr auto big_mul(right_t right) noexcept
       const uint64_t b_high = right >> shift;
       const uint64_t t = a_high * b_low + (a_low * b_low >> shift);
       const uint64_t tl = a_low * b_high + (t & lower_bits);
+      const uint64_t low = left * right;
+      const uint64_t high = a_high * b_high + (t >> shift) + (tl >> shift);
       if constexpr (std::endian::native == std::endian::little)
       {
-        return result_t{left * right, a_high * b_high + (t >> shift) + (tl >> shift)};
+        return result_t{low, high};
       }
+      //TODO: big endian logic has not been tested.
       if constexpr (std::endian::native == std::endian::big)
       {
-        return result_t{a_high * b_high + (t >> shift) + (tl >> shift), left * right};
+        return result_t{high, low};
       }
     }
   }

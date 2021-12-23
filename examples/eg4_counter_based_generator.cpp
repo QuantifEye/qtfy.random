@@ -1,48 +1,97 @@
 #include <algorithm>
-#include <memory>
-#include <vector>
 #include <execution>
+#include <memory>
+#include <random>
+#include <ranges>
+#include <vector>
+#include "qtfy/coro/generator.hpp"
 #include "qtfy/random.hpp"
 #include "tools.hpp"
 
-void print(auto&& item) { std::cout << item << '\n'; }
+using qtfy::coro::generator;
+
+generator<uint64_t> random_engine_stream(uint64_t key)
+{
+  using namespace qtfy::random;
+  threefry4x64<> gen{{key, 0, 0, 0}};
+  while (true)
+  {
+    co_yield gen();
+  }
+}
+
+generator<double> standard_normal_stream(uint64_t key)
+{
+  using namespace qtfy::random;
+  threefry4x64<> gen{{key, 0, 0, 0}};
+  std::normal_distribution<double> dist{};
+  while (true)
+  {
+    co_yield dist(gen);
+  }
+}
+
+constexpr double calculate_pi(uint64_t iterations) noexcept
+{
+  const auto divisor = static_cast<double>(iterations);
+  auto engine = qtfy::random::threefry4x64<>{};
+  uint64_t count{};
+  do
+  {
+    double x = engine.next_canonical();
+    double y = engine.next_canonical();
+    if (x * x + y * y <= 1.0)
+    {
+      ++count;
+    }
+  } while (--iterations != 0);
+
+  return 4.0 * static_cast<double>(count) / divisor;
+}
 
 int main()
 {
-  using namespace qtfy::random;
+  using namespace std::views;
+  using std::ranges::count;
+  using std::ranges::count_if;
+  using std::ranges::sort;
 
-  // the library provides various counter based engines.
-  // all are provided as using declarations in the header random.hpp
-  // all counter based can be constructed with a key and a counter.
-  // both arguments are of type counter<,>
+  auto print_line = [](auto&& x) { std::cout << x << '\n'; };
+  auto new_line = []() { std::cout << '\n'; };
 
-  // we add the empty parens because we want to accept the default arguments
-  using gen_t = threefry4x64<>;
+  print_line("calculate pi:");
+  print_line(calculate_pi(1000));
 
-  // how to create a counter based generator
+  new_line();
+
+  print_line("initialise a stream with a key, and print some values.");
+  auto random_numbers = random_engine_stream(1);
+  for (auto x : random_numbers | take(10))
   {
-    // we default construct the generator
-    // this will set both the counter and the key to zero
-    gen_t gen{};
-    for (int i = 10; --i;)
-    {
-      print(gen());
-    }
+    print_line(x);
   }
 
-  // in order to create independent random number generators
-  // so that we can use each generator independently we
-  // have to provide the generators with different keys
-  // because keys are of type counter<,> we can simply do this
-  // by using the increment operator
+  new_line();
+
+  print_line("count even numbers from stream:");
+  auto is_even = [](auto x) { return x % 2U == 0; };
+  auto even_count = count_if(random_numbers | take(10000), is_even);
+  print_line(even_count);
+
+  new_line();
+
+  print_line("print some normally distributed values:");
+  auto normal_values = standard_normal_stream(1);
+  for (auto x : normal_values | take(10))
   {
-    using key_type = gen_t::key_type;
-    key_type key{};  // key initialised to zero
-    std::vector<gen_t> engines{};
-    for (int i{}; i < 100; ++i)
-    {
-      engines.emplace_back(key);
-      ++key;
-    }
+    print_line(x);
   }
+
+  new_line();
+
+  print_line("calculate the normal percentile that is represented by 0.675:");
+  auto amount = 100000;
+  auto c =
+      count_if(normal_values | take(amount), [](auto x) { return x < 0.675; });
+  print_line(c / static_cast<double>(amount));
 }

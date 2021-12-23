@@ -71,8 +71,8 @@ void test_discard()
 void test_different_return_types()
 {
 
-  threefry4x64<20, uint64_t> gen64{};
-  threefry4x64<20, uint32_t> gen32{};
+  threefry4x64<uint64_t> gen64{};
+  threefry4x64<uint32_t> gen32{};
 
   uint64_t two32 = uint64_t{UINT32_MAX} + uint64_t{1};
   for (int i = 0; i < 100; ++i)

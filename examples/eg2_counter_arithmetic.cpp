@@ -48,10 +48,10 @@ int main()
     ctr -= 5U;
     assert_equal(ctr, ctr_t{5, 2, 3, 4});
   }
+
+  // can subtract and add numbers larger than what individual words can manage.
   {
     const auto two_to_the_32 = uint64_t{1} << 32U;
-    ctr_t ctr{10, 2, 3, 4};
-    ctr -= two_to_the_32;
-    assert_equal(ctr, ctr_t{10, 1, 3, 4});
+    assert_equal(ctr_t{10, 2, 3, 4} - two_to_the_32, ctr_t{10, 1, 3, 4});
   }
 }

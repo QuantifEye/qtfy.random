@@ -5,15 +5,35 @@
 
 namespace qtfy::random {
 
-template <class word_t, size_t words, unsigned rounds, std::array<word_t, words / 2U> bumps,
+template <class word_t, size_t words, unsigned rounds,
+          std::array<word_t, words / 2U> bumps,
           std::array<uint64_t, words / 2U> multipliers>
 class philox_trait
 {
+ public:
+  using counter_type = counter<word_t, words>;
+  using key_type = counter<word_t, words / 2>;
+  using internal_key_type = key_type;
+  using word_type = word_t;
+
+ private:
   static_assert(words == 2U || words == 4U);
-  static_assert(std::is_same_v<word_t, uint32_t> || std::is_same_v<word_t, uint64_t>);
+  static_assert(std::is_same_v<word_t, uint32_t> ||
+                std::is_same_v<word_t, uint64_t>);
   static_assert(rounds <= 16U);
 
-  static constexpr auto round(auto ctr, auto key) noexcept
+  static constexpr internal_key_type bump_key(internal_key_type key) noexcept
+  {
+    for (size_t i{}; i < bumps.size(); ++i)
+    {
+      key[i] += bumps[i];
+    }
+
+    return key;
+  }
+
+  static constexpr counter_type round(counter_type ctr,
+                                      internal_key_type key) noexcept
   {
     using namespace qtfy::random::utilities;
 
@@ -26,29 +46,77 @@ class philox_trait
     {
       const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
       const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
-      return counter_type{product1.hi ^ ctr[1U] ^ key[0U], product1.lo, product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
+      return counter_type{product1.hi ^ ctr[1U] ^ key[0U], product1.lo,
+                          product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
     }
   }
 
-  static constexpr auto bump_key(auto key) noexcept
+  template <auto r, auto key>
+  static consteval auto get_key() noexcept
   {
-    for (size_t i{}; i < bumps.size(); ++i)
+    auto temp = key;
+    for (unsigned i{1}; i < r; ++i)
     {
-      key[i] += bumps[i];
+      temp = bump_key();
     }
 
-    return key;
+    return temp;
+  }
+
+  template <unsigned r, auto key>
+  static constexpr void round(auto&& ctr) noexcept
+  {
+    using namespace qtfy::random::utilities;
+    constexpr auto key_r = get_key<r, key>();
+    if constexpr (words == 2U)
+    {
+      const auto product = big_mul<multipliers[0U]>(ctr[0U]);
+      ctr[0U] = product.hi ^ key_r[0U] ^ ctr[1U];
+      ctr[1U] = product.lo;
+    }
+    if constexpr (words == 4U)
+    {
+      const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
+      const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
+      ctr[0U] = product1.hi ^ ctr[1U] ^ key_r[0U];
+      ctr[1U] = product1.lo;
+      ctr[2U] = product0.hi ^ ctr[3U] ^ key_r[1U];
+      ctr[3U] = product0.lo;
+    }
+  }
+
+  template <unsigned r, auto key>
+  static constexpr auto round_applier(auto&& ctr)
+  {
+    if constexpr (r < rounds)
+    {
+      round<r, key>(ctr);
+    }
+    if constexpr (r + 1U < rounds)
+    {
+      round_applier<r + 1, key>(ctr);
+    }
   }
 
  public:
-  using counter_type = counter<word_t, words>;
-  using key_type = counter<word_t, words / 2>;
-  using internal_key_type = key_type;
-  using word_type = word_t;
+  static constexpr internal_key_type set_key(key_type key) noexcept
+  {
+    return key;
+  }
 
-  static constexpr internal_key_type set_key(key_type key) noexcept { return key; }
+  template <key_type key>
+  static constexpr counter_type bijection(counter_type ctr) noexcept
+  {
+    if constexpr (rounds != 0U)
+    {
+      round_applier<0, key>(ctr);
+    }
 
-  static constexpr counter_type bijection(counter_type ctr, internal_key_type key) noexcept
+    return ctr;
+  }
+
+  static constexpr counter_type bijection(counter_type ctr,
+                                          internal_key_type key) noexcept
   {
     if constexpr (rounds != 0U)
     {
@@ -64,23 +132,31 @@ class philox_trait
 };
 
 template <class word_t, unsigned rounds, word_t b0, uint64_t m0>
-using philox2_trait = philox_trait<word_t, 2, rounds, std::array<word_t, 1>{b0}, std::array<uint64_t, 1>{m0}>;
+using philox2_trait = philox_trait<word_t, 2, rounds, std::array<word_t, 1>{b0},
+                                   std::array<uint64_t, 1>{m0}>;
 
-template <class word_t, unsigned rounds, word_t b0, word_t b1, uint64_t m0, uint64_t m1>
-using philox4_trait = philox_trait<word_t, 4, rounds, std::array<word_t, 2>{b0, b1}, std::array<uint64_t, 2>{m0, m1}>;
-
-template <unsigned rounds>
-using philox2x32_trait = philox2_trait<uint32_t, rounds, 0x9E3779B9, 0xD256D193>;
-
-template <unsigned rounds>
-using philox2x64_trait = philox2_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xD2B74407B1CE6E93>;
+template <class word_t, unsigned rounds, word_t b0, word_t b1, uint64_t m0,
+          uint64_t m1>
+using philox4_trait =
+    philox_trait<word_t, 4, rounds, std::array<word_t, 2>{b0, b1},
+                 std::array<uint64_t, 2>{m0, m1}>;
 
 template <unsigned rounds>
-using philox4x32_trait = philox4_trait<uint32_t, rounds, 0x9E3779B9, 0xBB67AE85, 0xD2511F53, 0xCD9E8D57>;
+using philox2x32_trait =
+    philox2_trait<uint32_t, rounds, 0x9E3779B9, 0xD256D193>;
+
+template <unsigned rounds>
+using philox2x64_trait =
+    philox2_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xD2B74407B1CE6E93>;
+
+template <unsigned rounds>
+using philox4x32_trait = philox4_trait<uint32_t, rounds, 0x9E3779B9, 0xBB67AE85,
+                                       0xD2511F53, 0xCD9E8D57>;
 
 template <unsigned rounds>
 using philox4x64_trait =
-    philox4_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xBB67AE8584CAA73B, 0xD2E7470EE14C6C93, 0xCA5A826395121157>;
+    philox4_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xBB67AE8584CAA73B,
+                  0xD2E7470EE14C6C93, 0xCA5A826395121157>;
 
 }  // namespace qtfy::random
 

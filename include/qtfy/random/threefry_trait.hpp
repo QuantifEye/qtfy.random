@@ -23,12 +23,7 @@ class threefry_trait
   static_assert(rounds <= 72U);
 
   static constexpr std::array<word_t, 3> extended_tweaks{tweaks[0], tweaks[1],
-                                               tweaks[0] ^ tweaks[1]};
-
-  static consteval unsigned get_rotation(unsigned index, unsigned round) noexcept
-  {
-    return rotations.at(index).at(round % 8U);
-  }
+                                                         tweaks[0] ^ tweaks[1]};
 
   template <unsigned r>
   static constexpr auto bump_counter(counter_type ctr,
@@ -97,7 +92,7 @@ class threefry_trait
     if constexpr (words == 2U)
     {
       ctr[0U] += ctr[1U];
-      ctr[1U] = rotate_left<get_rotation(0U, r)>(ctr[1U]) ^ ctr[0U];
+      ctr[1U] = rotate_left<rotations[0U][r % 8U]>(ctr[1U]) ^ ctr[0U];
     }
     if constexpr (words == 4U)
     {
@@ -107,9 +102,9 @@ class threefry_trait
       constexpr size_t idx2 = 2U;
       constexpr size_t idx3 = is_even ? 3U : 1U;
       ctr[idx0] += ctr[idx1];
-      ctr[idx1] = rotate_left<get_rotation(0U, r)>(ctr[idx1]) ^ ctr[idx0];
+      ctr[idx1] = rotate_left<rotations[0U][r % 8U]>(ctr[idx1]) ^ ctr[idx0];
       ctr[idx2] += ctr[idx3];
-      ctr[idx3] = rotate_left<get_rotation(1U, r)>(ctr[idx3]) ^ ctr[idx2];
+      ctr[idx3] = rotate_left<rotations[1U][r % 8U]>(ctr[idx3]) ^ ctr[idx2];
     }
 
     return ctr;
@@ -138,7 +133,7 @@ class threefry_trait
   template <unsigned r, internal_key_type key>
   static constexpr auto round_applier(counter_type counter) noexcept
   {
-    counter = round<r, key>(counter);
+    counter = round<r>(counter);
     if constexpr ((r + 1U) % 4U == 0U)
     {
       counter = bump_counter<r, key>(counter);
@@ -155,7 +150,7 @@ class threefry_trait
   }
 
  public:
-  template <key_type key>
+  template <internal_key_type key>
   static constexpr counter_type bijection(counter_type counter) noexcept
   {
     if constexpr (rounds != 0U)
@@ -167,7 +162,7 @@ class threefry_trait
   }
 
   static constexpr counter_type bijection(counter_type counter,
-                                  internal_key_type key) noexcept
+                                          internal_key_type key) noexcept
   {
     if constexpr (rounds != 0U)
     {
@@ -187,6 +182,20 @@ class threefry_trait
       result.back() ^= key[i];
     }
     return result;
+  }
+
+  static constexpr auto make_bijection(key_type key) noexcept
+  {
+    return [extended_key = set_key(key)](counter_type ctr) noexcept {
+      return bijection(ctr, extended_key);
+    };
+  }
+
+  template <key_type key>
+  static consteval auto make_bijection() noexcept
+  {
+    return
+        [](counter_type ctr) noexcept { return bijection<set_key(key)>(ctr); };
   }
 };
 
@@ -226,10 +235,71 @@ using threefry4x32_trait =
     threefry4_trait<uint32_t, rounds, t0, t1, 0x1BD11BDA, 10U, 11U, 13U, 23U,
                     6U, 17U, 25U, 18U, 26U, 21U, 27U, 5U, 20U, 11U, 10U, 20U>;
 
-template <unsigned rounds, uint64_t t0 = 0, uint64_t t1 = 0>
+template <unsigned rounds, uint32_t t0 = 0, uint32_t t1 = 0>
 using threefry2x32_trait =
-    threefry2_trait<uint64_t, rounds, t0, t1, 0x1BD11BDA, 13U, 15U, 26U, 6U,
+    threefry2_trait<uint32_t, rounds, t0, t1, 0x1BD11BDA, 13U, 15U, 26U, 6U,
                     17U, 29U, 16U, 24U>;
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1>
+requires(std::is_same_v<uint64_t, word_t>&& words == 2)
+constexpr auto threefry_factory(counter<uint64_t, 2> key) noexcept
+{
+  using trait_t = threefry2x64_trait<rounds, t0, t1>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1>
+requires(std::is_same_v<uint64_t, word_t>&& words == 4)
+constexpr auto threefry_factory(counter<uint64_t, 4> key) noexcept
+{
+  using trait_t = threefry4x64_trait<rounds>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1>
+requires(std::is_same_v<uint32_t, word_t>&& words == 2)
+constexpr auto threefry_factory(counter<uint32_t, 2> key) noexcept
+{
+  using trait_t = threefry2x32_trait<rounds, t0, t1>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1>
+requires(std::is_same_v<uint32_t, word_t>&& words == 4) constexpr auto threefry_factory(counter<uint32_t, 4> key) noexcept
+{
+  using trait_t = threefry4x32_trait<rounds, t0, t1>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1, counter<uint64_t, 2> key>
+requires(std::is_same_v<uint64_t, word_t>&& words == 2) constexpr auto threefry_factory() noexcept
+{
+  using trait_t = threefry2x64_trait<rounds, t0, t1>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1, counter<uint64_t, 4> key>
+requires(std::is_same_v<uint64_t, word_t>&& words == 4)
+constexpr auto threefry_factory() noexcept
+{
+  using trait_t = threefry4x64_trait<rounds>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1, counter<uint32_t, 2> key>
+requires(std::is_same_v<uint32_t, word_t>&& words == 2)
+constexpr auto threefry_factory() noexcept
+{
+  using trait_t = threefry2x32_trait<rounds, t0, t1>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds, word_t t0, word_t t1, counter<uint32_t, 4> key>
+requires(std::is_same_v<uint32_t, word_t>&& words == 4) constexpr auto threefry_factory() noexcept
+{
+  using trait_t = threefry4x32_trait<rounds, t0, t1>;
+  return trait_t::template make_bijection<key>();
+}
 
 }  // namespace qtfy::random
 

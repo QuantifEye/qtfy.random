@@ -11,16 +11,17 @@ template <class word_t, size_t words, unsigned rounds,
 class philox_trait
 {
  public:
+  static_assert(words == 2U || words == 4U);
+  static_assert(std::is_same_v<word_t, uint32_t> ||
+                std::is_same_v<word_t, uint64_t>);
+  static_assert(rounds <= 16U);
+
   using counter_type = counter<word_t, words>;
   using key_type = counter<word_t, words / 2>;
   using internal_key_type = key_type;
   using word_type = word_t;
 
  private:
-  static_assert(words == 2U || words == 4U);
-  static_assert(std::is_same_v<word_t, uint32_t> ||
-                std::is_same_v<word_t, uint64_t>);
-  static_assert(rounds <= 16U);
 
   static constexpr internal_key_type bump_key(internal_key_type key) noexcept
   {
@@ -129,6 +130,19 @@ class philox_trait
     }
     return ctr;
   }
+
+  static constexpr auto make_bijection(key_type key) noexcept
+  {
+    return [extended_key = set_key(key)](counter_type ctr) noexcept {
+      return bijection(ctr, extended_key);
+    };
+  }
+
+  template <key_type key>
+  static constexpr auto make_bijection() noexcept
+  {
+    return [](counter_type ctr) noexcept { return bijection<key>(ctr); };
+  }
 };
 
 template <class word_t, unsigned rounds, word_t b0, uint64_t m0>
@@ -157,6 +171,82 @@ template <unsigned rounds>
 using philox4x64_trait =
     philox4_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xBB67AE8584CAA73B,
                   0xD2E7470EE14C6C93, 0xCA5A826395121157>;
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds>
+requires(std::is_same_v<uint64_t, word_t>&& words == 2)
+constexpr auto philox_factory(counter<uint64_t, 1> key) noexcept
+{
+  using trait_t = philox2x64_trait<rounds>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds>
+requires(std::is_same_v<uint64_t, word_t>&& words == 4)
+constexpr auto philox_factory(counter<uint64_t, 2> key) noexcept
+{
+  using trait_t = philox4x64_trait<rounds>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds>
+requires(std::is_same_v<uint32_t, word_t>&& words == 2)
+constexpr auto philox_factory(counter<uint32_t, 1> key) noexcept
+{
+  using trait_t = philox2x32_trait<rounds>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t, size_t words, unsigned rounds>
+requires(std::is_same_v<uint32_t, word_t>&& words == 4)
+constexpr auto philox_factory(counter<uint32_t, 2> key) noexcept
+{
+  using trait_t = philox4x32_trait<rounds>;
+  return trait_t::make_bijection(key);
+}
+
+template <std::unsigned_integral word_t,
+          size_t words,
+          unsigned rounds,
+          counter<uint64_t, 1> key>
+requires(std::is_same_v<uint64_t, word_t>&& words == 2)
+constexpr auto philox_factory() noexcept
+{
+  using trait_t = philox2x64_trait<rounds>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t,
+          size_t words,
+          unsigned rounds,
+          counter<uint64_t, 2> key>
+requires(std::is_same_v<uint64_t, word_t>&& words == 4)
+constexpr auto philox_factory() noexcept
+{
+  using trait_t = philox4x64_trait<rounds>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t,
+          size_t words,
+          unsigned rounds,
+          counter<uint32_t, 1> key>
+requires(std::is_same_v<uint32_t, word_t>&& words == 2)
+constexpr auto philox_factory() noexcept
+{
+  using trait_t = philox2x32_trait<rounds>;
+  return trait_t::template make_bijection<key>();
+}
+
+template <std::unsigned_integral word_t,
+          size_t words,
+          unsigned rounds,
+          counter<uint32_t, 2> key>
+requires(std::is_same_v<uint32_t, word_t>&& words == 4)
+constexpr auto philox_factory() noexcept
+{
+  using trait_t = philox4x32_trait<rounds>;
+  return trait_t::template make_bijection<key>();
+}
 
 }  // namespace qtfy::random
 

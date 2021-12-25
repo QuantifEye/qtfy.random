@@ -6,6 +6,7 @@
 #include "qtfy/random/philox_trait.hpp"
 #include "qtfy/random/threefry_trait.hpp"
 #include "qtfy/random/utlities.hpp"
+#include "qtfy/random/counter_based_engine_with_bijection.hpp"
 
 namespace qtfy::random {
 

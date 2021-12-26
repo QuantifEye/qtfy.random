@@ -83,10 +83,8 @@ void test_reinterpret()
 {
   constexpr qtfy::random::counter<uint16_t, 4> arr16{0x1234, 0x5678, 0x9012, 0x3456};
   constexpr qtfy::random::counter<uint32_t, 2> arr32{0x56781234, 0x34569012};
-
   auto expected16 = qtfy::random::reinterpret<uint16_t>(arr32);
   auto expected32 = qtfy::random::reinterpret<uint32_t>(arr16);
-
   assert_are_equal(expected16, arr16);
   assert_are_equal(expected32, arr32);
 }

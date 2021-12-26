@@ -133,6 +133,7 @@ class threefry_trait
   template <unsigned r, internal_key_type key>
   static constexpr auto round_applier(counter_type counter) noexcept
   {
+
     counter = round<r>(counter);
     if constexpr ((r + 1U) % 4U == 0U)
     {

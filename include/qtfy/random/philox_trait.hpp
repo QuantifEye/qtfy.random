@@ -5,38 +5,56 @@
 
 namespace qtfy::random {
 
-template <class word_t, size_t words, unsigned rounds,
-          std::array<word_t, words / 2U> bumps,
-          std::array<uint64_t, words / 2U> multipliers>
+template <counter_word word_t, size_t words>
+struct philox_constants
+{
+  std::array<word_t, words / 2U> bumps;
+  std::array<uint64_t, words / 2U> multipliers;
+};
+
+template <counter_word word_t, size_t words>
+consteval philox_constants<word_t, words> default_philox_constants()
+{
+  if constexpr (words == 2U && std::is_same_v<word_t, uint64_t>)
+  {
+    return {.bumps = {0x9E3779B97F4A7C15}, .multipliers = {0xD2B74407B1CE6E93}};
+  }
+  if constexpr (words == 4U && std::is_same_v<word_t, uint64_t>)
+  {
+    return {.bumps = {0x9E3779B97F4A7C15, 0xBB67AE8584CAA73B}, .multipliers = {0xD2E7470EE14C6C93, 0xCA5A826395121157}};
+  }
+  if constexpr (words == 2U && std::is_same_v<word_t, uint32_t>)
+  {
+    return {.bumps = {0x9E3779B9}, .multipliers = {0xD256D193}};
+  }
+  if constexpr (words == 4U && std::is_same_v<word_t, uint32_t>)
+  {
+    return {.bumps = {0x9E3779B9, 0xBB67AE85}, .multipliers = {0xD2511F53, 0xCD9E8D57}};
+  }
+}
+
+template <counter_word word_t, size_t words, unsigned rounds,
+          philox_constants<word_t, words> constants = default_philox_constants<word_t, words>()>
 class philox_trait
 {
- public:
   static_assert(words == 2U || words == 4U);
-  static_assert(std::is_same_v<word_t, uint32_t> ||
-                std::is_same_v<word_t, uint64_t>);
+  static_assert(std::is_same_v<word_t, uint32_t> || std::is_same_v<word_t, uint64_t>);
   static_assert(rounds <= 16U);
 
-  using counter_type = counter<word_t, words>;
-  using key_type = counter<word_t, words / 2>;
-  using internal_key_type = key_type;
-  using word_type = word_t;
-
- private:
-  static constexpr internal_key_type bump_key(internal_key_type key) noexcept
+  static constexpr auto bump_key(auto key) noexcept
   {
-    for (size_t i{}; i < bumps.size(); ++i)
+    for (size_t i{}; i < words / 2U; ++i)
     {
-      key[i] += bumps[i];
+      key[i] += constants.bumps[i];
     }
 
     return key;
   }
 
-  static constexpr counter_type round(counter_type ctr,
-                                      internal_key_type key) noexcept
+  static constexpr auto round(auto ctr, auto key) noexcept
   {
     using namespace qtfy::random::utilities;
-
+    constexpr auto multipliers = constants.multipliers;
     if constexpr (words == 2U)
     {
       const auto product = big_mul<multipliers[0U]>(ctr[0U]);
@@ -46,64 +64,18 @@ class philox_trait
     {
       const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
       const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
-      return counter_type{product1.hi ^ ctr[1U] ^ key[0U], product1.lo,
-                          product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
-    }
-  }
-
-  template <unsigned r, key_type key>
-  static constexpr auto round_applier(auto ctr) noexcept
-  {
-    using namespace qtfy::random::utilities;
-    if constexpr (words == 2U)
-    {
-      const auto product = big_mul<multipliers[0U]>(ctr[0U]);
-      ctr[0U] = product.hi ^ key[0U] ^ ctr[1U];
-      ctr[1U] = product.lo;
-    }
-    if constexpr (words == 4U)
-    {
-      const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
-      const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
-      ctr[0U] = product1.hi ^ ctr[1U] ^ key[0U];
-      ctr[1U] = product1.lo;
-      ctr[2U] = product0.hi ^ ctr[3U] ^ key[1U];
-      ctr[3U] = product0.lo;
-    }
-
-    if constexpr (r + 1U < rounds)
-    {
-      return round_applier<r + 1, bump_key(key)>(ctr);
-    }
-    else
-    {
-      return ctr;
+      return counter_type{product1.hi ^ ctr[1U] ^ key[0U], product1.lo, product0.hi ^ ctr[3U] ^ key[1U], product0.lo};
     }
   }
 
   template <unsigned r>
-  static constexpr auto round_applier(key_type key, auto ctr) noexcept
+  static constexpr auto round_applier(auto ctr, auto internal_key) noexcept
   {
-    using namespace qtfy::random::utilities;
-    if constexpr (words == 2U)
-    {
-      const auto product = big_mul<multipliers[0U]>(ctr[0U]);
-      ctr[0U] = product.hi ^ key[0U] ^ ctr[1U];
-      ctr[1U] = product.lo;
-    }
-    if constexpr (words == 4U)
-    {
-      const auto product0 = big_mul<multipliers[0U]>(ctr[0U]);
-      const auto product1 = big_mul<multipliers[1U]>(ctr[2U]);
-      ctr[0U] = product1.hi ^ ctr[1U] ^ key[0U];
-      ctr[1U] = product1.lo;
-      ctr[2U] = product0.hi ^ ctr[3U] ^ key[1U];
-      ctr[3U] = product0.lo;
-    }
-
+    ctr = round(ctr, internal_key);
     if constexpr (r + 1U < rounds)
     {
-      return round_applier<r + 1>(bump_key(key), ctr);
+      internal_key = bump_key(internal_key);
+      return round_applier<r + 1>(ctr, internal_key);
     }
     else
     {
@@ -112,144 +84,59 @@ class philox_trait
   }
 
  public:
-  static constexpr internal_key_type set_key(key_type key) noexcept
+  using counter_type = counter<word_t, words>;
+  using key_type = counter<word_t, words / 2>;
+  using internal_key_type = key_type;
+
+  static constexpr internal_key_type set_key(key_type key) noexcept { return key; }
+
+  static constexpr counter_type bijection(counter_type ctr, internal_key_type internal_key) noexcept
   {
-    return key;
+    if constexpr (rounds != 0U)
+    {
+      return round_applier<0>(ctr, internal_key);
+    }
+    else
+    {
+      return ctr;
+    }
   }
 
-  template <key_type key>
+  template <internal_key_type key>
   static constexpr counter_type bijection(counter_type ctr) noexcept
   {
-    if constexpr (rounds != 0U)
-    {
-      return round_applier<0, key>(ctr);
-    }
-    else
-    {
-      return ctr;
-    }
+    return bijection_impl(ctr, key);
   }
 
-  static constexpr counter_type bijection(counter_type ctr,
-                                          internal_key_type key) noexcept
+  static constexpr auto make_functor(key_type key) noexcept
   {
-    if constexpr (rounds != 0U)
-    {
-      return round_applier<0>(key, ctr);
-    }
-    else
-    {
-      return ctr;
-    }
-  }
-
-  static constexpr auto make_bijection(key_type key) noexcept
-  {
-    return [extended_key = set_key(key)](counter_type ctr) noexcept {
-      return bijection(ctr, extended_key);
-    };
+    return [extended_key = set_key(key)](counter_type ctr) noexcept { return bijection(ctr, extended_key); };
   }
 
   template <key_type key>
-  static constexpr auto make_bijection() noexcept
+  static constexpr auto make_functor() noexcept
   {
     return [](counter_type ctr) noexcept { return bijection<key>(ctr); };
   }
 };
 
-template <class word_t, unsigned rounds, word_t b0, uint64_t m0>
-using philox2_trait = philox_trait<word_t, 2, rounds, std::array<word_t, 1>{b0},
-                                   std::array<uint64_t, 1>{m0}>;
-
-template <class word_t, unsigned rounds, word_t b0, word_t b1, uint64_t m0,
-          uint64_t m1>
-using philox4_trait =
-    philox_trait<word_t, 4, rounds, std::array<word_t, 2>{b0, b1},
-                 std::array<uint64_t, 2>{m0, m1}>;
-
-template <unsigned rounds>
-using philox2x32_trait =
-    philox2_trait<uint32_t, rounds, 0x9E3779B9, 0xD256D193>;
-
-template <unsigned rounds>
-using philox2x64_trait =
-    philox2_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xD2B74407B1CE6E93>;
-
-template <unsigned rounds>
-using philox4x32_trait = philox4_trait<uint32_t, rounds, 0x9E3779B9, 0xBB67AE85,
-                                       0xD2511F53, 0xCD9E8D57>;
-
-template <unsigned rounds>
-using philox4x64_trait =
-    philox4_trait<uint64_t, rounds, 0x9E3779B97F4A7C15, 0xBB67AE8584CAA73B,
-                  0xD2E7470EE14C6C93, 0xCA5A826395121157>;
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds>
-requires(std::is_same_v<uint64_t, word_t>&& words ==
-         2) constexpr auto philox_factory(counter<uint64_t, 1> key) noexcept
+template <counter_word word_t, size_t words, unsigned rounds,
+          philox_constants<word_t, words> constants = default_philox_constants<word_t, words>()>
+constexpr auto make_philox_functor(counter<word_t, words / 2U> key) noexcept
 {
-  using trait_t = philox2x64_trait<rounds>;
-  return trait_t::make_bijection(key);
+  return [extended_key = set_key(key)](counter<word_t, words> ctr) noexcept {
+    return philox_trait<word_t, words, rounds, constants>::bijection(ctr, extended_key);
+  };
 }
 
-template <std::unsigned_integral word_t, size_t words, unsigned rounds>
-requires(std::is_same_v<uint64_t, word_t>&& words ==
-         4) constexpr auto philox_factory(counter<uint64_t, 2> key) noexcept
+template <counter_word word_t, size_t words, unsigned rounds, counter<word_t, words / 2U> key,
+          philox_constants<word_t, words> constants = default_philox_constants<word_t, words>()>
+constexpr auto make_philox_functor() noexcept
 {
-  using trait_t = philox4x64_trait<rounds>;
-  return trait_t::make_bijection(key);
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds>
-requires(std::is_same_v<uint32_t, word_t>&& words ==
-         2) constexpr auto philox_factory(counter<uint32_t, 1> key) noexcept
-{
-  using trait_t = philox2x32_trait<rounds>;
-  return trait_t::make_bijection(key);
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds>
-requires(std::is_same_v<uint32_t, word_t>&& words ==
-         4) constexpr auto philox_factory(counter<uint32_t, 2> key) noexcept
-{
-  using trait_t = philox4x32_trait<rounds>;
-  return trait_t::make_bijection(key);
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds,
-          counter<uint64_t, 1> key>
-requires(std::is_same_v<uint64_t, word_t>&& words ==
-         2) constexpr auto philox_factory() noexcept
-{
-  using trait_t = philox2x64_trait<rounds>;
-  return trait_t::template make_bijection<key>();
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds,
-          counter<uint64_t, 2> key>
-requires(std::is_same_v<uint64_t, word_t>&& words ==
-         4) constexpr auto philox_factory() noexcept
-{
-  using trait_t = philox4x64_trait<rounds>;
-  return trait_t::template make_bijection<key>();
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds,
-          counter<uint32_t, 1> key>
-requires(std::is_same_v<uint32_t, word_t>&& words ==
-         2) constexpr auto philox_factory() noexcept
-{
-  using trait_t = philox2x32_trait<rounds>;
-  return trait_t::template make_bijection<key>();
-}
-
-template <std::unsigned_integral word_t, size_t words, unsigned rounds,
-          counter<uint32_t, 2> key>
-requires(std::is_same_v<uint32_t, word_t>&& words ==
-         4) constexpr auto philox_factory() noexcept
-{
-  using trait_t = philox4x32_trait<rounds>;
-  return trait_t::template make_bijection<key>();
+  return [extended_key = set_key(key)](counter<word_t, words> ctr) noexcept {
+    return philox_trait<word_t, words, rounds, constants>::template bijection<>(ctr);
+  };
+  return philox_trait<word_t, words, rounds, constants>::template make_functor<key>();
 }
 
 }  // namespace qtfy::random

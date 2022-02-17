@@ -7,7 +7,7 @@ auto assert_equal(auto&& expected, auto&& actual)
 {
   if (expected != actual)
   {
-    throw std::exception{};
+    throw ::std::exception{};
   }
 }
 

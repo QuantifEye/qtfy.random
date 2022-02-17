@@ -8,10 +8,6 @@
 #include <limits>
 #include <type_traits>
 
-namespace qtfy::random {
-using std::size_t;
-}
-
 namespace qtfy::random::utilities {
 
 template <class T, std::endian endian = std::endian::native>
@@ -33,7 +29,7 @@ struct HiLo<T, std::endian::little>
   T hi;
 };
 
-constexpr bool has_unsigned_int128() noexcept
+consteval bool has_unsigned_int128() noexcept
 {
 #if defined(__GNUC__) && defined(__x86_64__)
   return true;
@@ -42,12 +38,10 @@ constexpr bool has_unsigned_int128() noexcept
 #endif
 }
 
-template <uint64_t left, std::unsigned_integral right_t>
-constexpr auto big_mul(right_t right) noexcept
+template <uint64_t left, class right_t>
+requires(std::is_same_v<right_t, uint32_t> ||
+         std::is_same_v<right_t, uint64_t>) constexpr auto big_mul(right_t right) noexcept
 {
-  static_assert(std::is_same_v<right_t, uint32_t> ||
-                std::is_same_v<right_t, uint64_t>);
-
   using result_t = HiLo<right_t>;
 
   if constexpr (std::is_same_v<right_t, uint32_t>)
@@ -56,11 +50,14 @@ constexpr auto big_mul(right_t right) noexcept
   }
   if constexpr (std::is_same_v<right_t, uint64_t>)
   {
-    constexpr bool use_bit_cast = false;
-    if constexpr (has_unsigned_int128() && use_bit_cast)
+    if constexpr (has_unsigned_int128())
     {
-      constexpr auto big_left = static_cast<unsigned __int128>(left);
-      return std::bit_cast<result_t>(big_left * right);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+      using uint128_t = unsigned __int128;
+#pragma GCC diagnostic pop
+
+      return std::bit_cast<result_t>(static_cast<uint128_t>(left) * right);
     }
     else
     {
@@ -78,7 +75,7 @@ constexpr auto big_mul(right_t right) noexcept
       {
         return result_t{low, high};
       }
-      //TODO: big endian logic has not been tested.
+      // TODO: big endian logic has not been tested.
       if constexpr (std::endian::native == std::endian::big)
       {
         return result_t{high, low};

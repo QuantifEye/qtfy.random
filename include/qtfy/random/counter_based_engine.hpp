@@ -1,54 +1,27 @@
-#ifndef QTFY_RANDOM_COUNTER_BASED_ENGINE_HPP
-#define QTFY_RANDOM_COUNTER_BASED_ENGINE_HPP
+#ifndef QTFY_RANDOM_COUNTER_BASED_ENGINE_WITH_LAMBDA_HPP
+#define QTFY_RANDOM_COUNTER_BASED_ENGINE_WITH_LAMBDA_HPP
 
 #include "counter.hpp"
 
 namespace qtfy::random {
 
-template <class trait_t,
-          std::unsigned_integral result_t = typename trait_t::word_type>
+template <counter_word result_t, class counter_t, class bijection_t>
 class counter_based_engine
 {
- public:
-  using word_type = typename trait_t::word_type;
-  using key_type = typename trait_t::key_type;
-  using counter_type = typename trait_t::counter_type;
-  using internal_key_type = typename trait_t::internal_key_type;
-  using buffer_type =
-      decltype(reinterpret<result_t>(trait_t::bijection({}, {})));
+  using bijection_result_t = std::invoke_result_t<bijection_t, counter_t>;
+  static_assert(std::is_same_v<bijection_result_t, counter_t>);
 
- private:
-  static constexpr size_t buffer_size = buffer_type{}.size();
-  size_t m_index{};
-  buffer_type m_buffer{};
-  counter_type m_counter{};
-  const internal_key_type m_key{};
+  using buffer_t = decltype(reinterpret<result_t>(counter_t{}));
+  static constexpr auto buffer_size = buffer_t{}.size();
+
+  size_t m_index;
+  buffer_t m_buffer;
+  counter_t m_counter;
+  [[no_unique_address]] bijection_t m_bijection;
 
  public:
-  static constexpr internal_key_type set_key(key_type key) noexcept
-  {
-    return trait_t::set_key(key);
-  }
-
-  static constexpr buffer_type bijection(
-      counter_type counter, internal_key_type internal_key) noexcept
-  {
-    return reinterpret<result_t>(trait_t::bijection(counter, internal_key));
-  }
-
-  constexpr counter_based_engine(key_type key, counter_type counter) noexcept
-      : m_index{}, m_buffer{}, m_counter{counter}, m_key{set_key(key)}
-  {
-    m_buffer = bijection(m_counter, m_key);
-  }
-
-  explicit constexpr counter_based_engine(key_type key) noexcept
-      : counter_based_engine(key, counter_type{})
-  {
-  }
-
-  constexpr counter_based_engine() noexcept
-      : counter_based_engine(key_type{}, counter_type{})
+  constexpr counter_based_engine(counter_t ctr, bijection_t bijection) noexcept
+      : m_index{}, m_buffer{reinterpret<result_t>(bijection(ctr))}, m_counter{ctr}, m_bijection{bijection}
   {
   }
 
@@ -64,7 +37,7 @@ class counter_based_engine
     if (chunks != 0U)
     {
       m_counter += chunks;
-      m_buffer = bijection(m_counter, m_key);
+      m_buffer = reinterpret<result_t>(m_bijection(m_counter));
     }
   }
 
@@ -72,85 +45,74 @@ class counter_based_engine
   {
     if (m_index == buffer_size)
     {
-      m_buffer = bijection(++m_counter, m_key);
+      m_buffer = reinterpret<result_t>(m_bijection(++m_counter));
       m_index = size_t{};
     }
+
     return m_buffer[m_index++];
   }
 
-  static constexpr result_t max() noexcept
-  {
-    return std::numeric_limits<result_t>::max();
-  }
+  static constexpr result_t max() noexcept { return std::numeric_limits<result_t>::max(); }
 
-  static constexpr result_t min() noexcept
-  {
-    return std::numeric_limits<result_t>::min();
-  }
+  static constexpr result_t min() noexcept { return std::numeric_limits<result_t>::min(); }
 
  private:
+  template <class main_t, class sub_t>
+  struct alignas(alignof(main_t)) alias
+  {
+    static_assert(sizeof(main_t) / sizeof(sub_t) != 0U);
+    static_assert(sizeof(main_t) % sizeof(sub_t) == 0U);
+    sub_t parts[sizeof(main_t) / sizeof(sub_t)];
+  };
+
+ public:
   template <size_t required_bits>
-  static consteval auto init_int(std::unsigned_integral auto x) noexcept
+  requires(required_bits <= 64) static consteval auto init_bits() noexcept
   {
     if constexpr (required_bits <= 8)
     {
-      return uint8_t{x};
+      return uint8_t{};
     }
     if constexpr (required_bits <= 16)
     {
-      return uint16_t{x};
+      return uint16_t{};
     }
     if constexpr (required_bits <= 32)
     {
-      return uint32_t{x};
+      return uint32_t{};
     }
     if constexpr (required_bits <= 64)
     {
-      return uint64_t{x};
+      return uint64_t{};
     }
   }
 
-  template <std::unsigned_integral main_t, std::unsigned_integral sub_t>
-  struct alignas(alignof(main_t)) alias
-  {
-    static_assert(sizeof(main_t) >= sizeof(sub_t));
-    static_assert(sizeof(main_t) / sizeof(sub_t) != 0);
-    static_assert(sizeof(main_t) % sizeof(sub_t) == 0);
-
-    static constexpr size_t size = sizeof(main_t) / sizeof(sub_t);
-    sub_t parts[size];
-  };
-
   template <size_t required_bits>
-  requires(required_bits <= 64) constexpr auto get_bits() noexcept
+  constexpr auto get_bits() noexcept requires(required_bits <= 64)
   {
-    using return_t = decltype(init_int<required_bits>(0U));
-    constexpr size_t bits_per_draw = std::numeric_limits<result_t>::digits;
-    constexpr size_t required_draws = required_bits % bits_per_draw == 0U
-                                          ? required_bits / bits_per_draw
-                                          : required_bits / bits_per_draw + 1;
+    using bits_t = decltype(init_bits<required_bits>());
 
+    constexpr size_t bits_per_draw = std::numeric_limits<result_t>::digits;
+    constexpr size_t required_draws =
+        required_bits % bits_per_draw == 0U ? required_bits / bits_per_draw : required_bits / bits_per_draw + 1;
     constexpr size_t shift = required_draws * bits_per_draw - required_bits;
+
     if constexpr (required_bits <= bits_per_draw)
     {
-      return operator()() >> shift;
+      return static_cast<bits_t>(operator()() >> shift);
     }
-
-    constexpr bool experimental = true;
-    if constexpr (std::endian::native == std::endian::little && experimental)
+    else if constexpr (std::endian::native == std::endian::little)
     {
-      using sub_t = decltype(operator()());
-      using alias_t = alias<return_t, sub_t>;
-      alias_t a{};
+      alias<bits_t, result_t> a{};
       for (size_t i{}; i < required_draws; ++i)
       {
         a.parts[i] = operator()();
       }
-      return std::bit_cast<return_t>(a) >> shift;
+      return std::bit_cast<bits_t>(a) >> shift;
     }
     else
     {
-      auto result = init_int<required_bits>(operator()());
+      bits_t result = operator()();
       for (size_t i{1}; i < required_draws; ++i)
       {
         result <<= bits_per_draw;
@@ -161,16 +123,51 @@ class counter_based_engine
     }
   }
 
- public:
-  template <std::floating_point T = double,
-            unsigned bits = std::numeric_limits<T>::digits>
-  constexpr T next_canonical() noexcept
+  template <std::floating_point T = double, unsigned bits = std::numeric_limits<T>::digits>
+  requires(bits <= 64) constexpr T next_canonical() noexcept
   {
     constexpr auto digits = std::numeric_limits<T>::digits;
     constexpr int scale = bits <= digits ? bits : digits;
     return std::scalbn(static_cast<T>(get_bits<scale>()), -scale);
   }
 };
+
+template <counter_word result_t, class counter_t, class bijection_t>
+constexpr counter_based_engine<result_t, counter_t, bijection_t> make_counter_based_engine(
+    counter_t ctr, bijection_t bijection) noexcept
+{
+  return {ctr, bijection};
+}
+
+template <counter_word word_t, size_t words, unsigned rounds, counter_word result_t = word_t,
+          threefry_constants<word_t, words> constants = default_threefry_constants<word_t, words>()>
+constexpr auto make_threefry_engine(counter<word_t, words> ctr, counter<word_t, words> key) noexcept
+{
+  return make_counter_based_engine<result_t>(ctr, make_threefry_functor<word_t, words, rounds, constants>(key));
+}
+
+template <counter_word word_t, size_t words, unsigned rounds, counter<word_t, words> key,
+          counter_word result_t = word_t,
+          threefry_constants<word_t, words> constants = default_threefry_constants<word_t, words>()>
+constexpr auto make_threefry_engine(counter<word_t, words> ctr) noexcept
+{
+  return make_counter_based_engine<result_t>(ctr, make_threefry_functor<word_t, words, rounds, key, constants>());
+}
+
+template <counter_word word_t, size_t words, unsigned rounds, counter_word result_t = word_t,
+          philox_constants<word_t, words> constants = default_philox_constants<word_t, words>()>
+constexpr auto make_philox_engine(counter<word_t, words> ctr, counter<word_t, words / 2U> key) noexcept
+{
+  return make_counter_based_engine<result_t>(ctr, make_philox_functor<word_t, words, rounds, constants>(key));
+}
+
+template <counter_word word_t, size_t words, unsigned rounds, counter<word_t, words / 2U> key,
+          counter_word result_t = word_t,
+          philox_constants<word_t, words> constants = default_philox_constants<word_t, words>()>
+constexpr auto make_philox_engine(counter<word_t, words> ctr) noexcept
+{
+  return make_counter_based_engine<result_t>(ctr, make_philox_functor<word_t, words, rounds, key, constants>());
+}
 
 }  // namespace qtfy::random
 
